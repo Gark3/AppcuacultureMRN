@@ -1,0 +1,4 @@
+activar el entorno virtual
+.\venv\Scripts\activate 
+correr servidor backend
+python manage.py runserver
