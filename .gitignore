@@ -1,0 +1,14 @@
+﻿# Python/Django
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+node_modules/
+dist/
+.env
+.env.local
+.env.development
+.env.production
+.vscode/
+.idea/
