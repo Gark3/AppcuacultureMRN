@@ -98,6 +98,14 @@ class ProveedorViewSet(viewsets.ModelViewSet):
 class EntradaViewSet(viewsets.ModelViewSet):
     queryset = Entrada.objects.all()
     serializer_class = EntradaSerializer
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entrada = serializer.save()
+        headers = self.get_success_headers(serializer.data)
+        # Asegura que devolvemos el objeto con su id (id o id_entrada)
+        return Response(self.get_serializer(entrada).data, status=status.HTTP_201_CREATED, headers=headers)    
 
 class EntradaUnitariaViewSet(viewsets.ModelViewSet):
     queryset = EntradaUnitaria.objects.all()

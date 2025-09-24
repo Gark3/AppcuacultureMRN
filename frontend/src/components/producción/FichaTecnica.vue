@@ -36,8 +36,8 @@ export default {
         const fechaSiembra = new Date(siembra.fecha);
         const diasDesdeSiembra = Math.floor((new Date() - fechaSiembra) / (1000 * 60 * 60 * 24));
 
-        const totalMortalidad = alimentaciones.reduce((sum, a) => sum + (a.mortalidad || 0), 0);
-        const organismosVivos = siembra.cantidad_organismos - totalMortalidad;
+        const totalsupervivencia = alimentaciones.reduce((sum, a) => sum + (a.supervivencia || 0), 0);
+        const organismosVivos = siembra.cantidad_organismos - totalsupervivencia;
 
         let pesoPromedio = siembra.peso_promedio;
         if (crecimientos.length > 0) {

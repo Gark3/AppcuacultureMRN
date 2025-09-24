@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
                 ('tipo', models.CharField(max_length=255)),
                 ('lote', models.CharField(max_length=30)),
                 ('kg', models.FloatField()),
-                ('mortalidad', models.FloatField()),
+                ('supervivencia', models.FloatField()),
                 ('clima', models.CharField(max_length=255)),
                 ('observacion', models.CharField(max_length=255)),
                 ('acuicola', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='api.acuicola')),

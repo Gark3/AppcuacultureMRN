@@ -76,8 +76,8 @@ export default {
         const alimentar = await axios.get(`/alimentar/?siembra=${siembraId}`);
         const crecimiento = await axios.get(`/crecimiento/?siembra=${siembraId}`);
 
-        const mortalidadTotal = alimentar.data.reduce((sum, a) => sum + (a.mortalidad || 0), 0);
-        const organismosActuales = siembra.data.cantidad_organismos - mortalidadTotal;
+        const supervivenciaTotal = alimentar.data.reduce((sum, a) => sum + (a.supervivencia || 0), 0);
+        const organismosActuales = siembra.data.cantidad_organismos - supervivenciaTotal;
 
         const fechasCrecimiento = [...new Set(crecimiento.data.map(c => c.fecha))];
         const ultimaFecha = fechasCrecimiento.sort().pop();

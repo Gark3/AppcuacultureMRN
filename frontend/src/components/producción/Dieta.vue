@@ -101,11 +101,11 @@ export default {
         const totalSembrado = Number(siembra.cantidad_organismos || 0);
         const pesoInicial = Number(siembra.peso_promedio || 0);
 
-        const mortalidades = alimentarRes.data
+        const supervivenciaes = alimentarRes.data
           .filter(a => a.siembra === siembra.id_siembra)
-          .reduce((acc, cur) => acc + (Number(cur.mortalidad) || 0), 0);
+          .reduce((acc, cur) => acc + (Number(cur.supervivencia) || 0), 0);
 
-        const sobrevivientes = totalSembrado - mortalidades;
+        const sobrevivientes = totalSembrado - supervivenciaes;
 
         let pesoPromedio = pesoInicial;
         const crecimientoHoy = crecimientoRes.data

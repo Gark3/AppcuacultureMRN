@@ -18,8 +18,8 @@
         <input type="number" id="kg" v-model="registro.kg" placeholder="Ingrese la cantidad de alimento" step="0.01" required />
       </div>
       <div class="form-group">
-        <label for="mortalidad">Mortalidad</label>
-        <input type="number" id="mortalidad" v-model="registro.mortalidad" placeholder="Ingrese la mortalidad" />
+        <label for="supervivencia">supervivencia</label>
+        <input type="number" id="supervivencia" v-model="registro.supervivencia" placeholder="Ingrese la supervivencia" />
       </div>
       <div class="form-group">
         <label for="clima">Clima</label>
@@ -46,7 +46,7 @@ export default {
         tipo: "",
         lote: "",
         kg: null,
-        mortalidad: null,
+        supervivencia: null,
         clima: "",
         observacion: "",
         estado: 1,
