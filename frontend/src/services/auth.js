@@ -1,24 +1,31 @@
-import api from './axios';
+// frontend/src/services/auth.js
+import api from "./axios";
 
-const API_URL = 'login/';
-
+// Login contra SimpleJWT: POST /api/token/
 export async function login(usuario, password) {
   try {
-    const response = await api.post(API_URL, {
+    const { data } = await api.post("/token/", {
       username: usuario,
-      password: password
+      password: password,
     });
+    // data = { access, refresh }
 
-    const data = response.data;
+    // Guarda tokens
+    localStorage.setItem("accessToken", data.access);
+    localStorage.setItem("refreshToken", data.refresh);
+    // Mantén compatibilidad si otras partes leen 'user.refresh'
+    localStorage.setItem("user", JSON.stringify({ refresh: data.refresh }));
 
-    // ✅ Asegúrate de guardar TODA la respuesta, incluyendo usuario_id y acuicola
-    console.log("🔍 Datos guardados del usuario:", data);
-    localStorage.setItem('accessToken', data.access);
-    localStorage.setItem('user', JSON.stringify(data));  // 🔥 Aquí está la clave
+    // Fija el header Authorization para siguientes requests
+    api.defaults.headers.common.Authorization = `Bearer ${data.access}`;
+
+    // (Opcional) Si tienes un endpoint de perfil, complétalo:
+    // const me = await api.get("/me/"); // ajusta si existe
+    // return { ...data, ...me.data };
 
     return data;
   } catch (error) {
-    const responseError = error.response?.data || { detail: 'Error desconocido' };
+    const responseError = error.response?.data || { detail: "Error desconocido" };
     console.error("Error en login:", responseError);
     throw responseError;
   }
