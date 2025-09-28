@@ -36,7 +36,7 @@ instance.interceptors.response.use(
         if (!refreshToken) throw new Error("No refresh token");
 
         // Hacer solicitud para refrescar token
-        const res = await axios.post('http://localhost:8000//api/token/refresh/', {
+        const res = await axios.post('http://localhost:8000/api/token/refresh/', {
           refresh: refreshToken
         });
 
