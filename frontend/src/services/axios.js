@@ -1,8 +1,44 @@
 // frontend/src/services/axios.js
 import axios from "axios";
 
-// Usa variable de entorno en build (Cloudflare Pages) o cae a "/api"
-const BASE_URL = (import.meta?.env?.VITE_API_URL ?? "/api").replace(/\/$/, "");
+/**
+ * Resuelve la base URL de la API de forma robusta:
+ * 1) Si existe VITE_API_URL en build, úsala.
+ * 2) Si NO existe, pero estamos en Pages (.pages.dev) o en producción del front,
+ *    apunta directo al backend público.
+ * 3) En dev local, cae a "/api".
+ */
+function resolveBaseURL() {
+  let envBase;
+  try {
+    // Solo existe durante el build (Vite lo reemplaza)
+    // En runtime de navegador puede tirar error, por eso el try/catch.
+    envBase = import.meta?.env?.VITE_API_URL;
+  } catch (_) {
+    envBase = undefined;
+  }
+
+  if (envBase) return String(envBase).replace(/\/$/, "");
+
+  const host =
+    typeof window !== "undefined" ? window.location.hostname : "";
+
+  // Si estamos en Preview/Pages o en el dominio del front, usa el backend público
+  if (host.endsWith(".pages.dev") || host === "app.appquaculture.com") {
+    return "https://api.appquaculture.com/api";
+  }
+
+  // Fallback para dev local con proxy
+  return "/api";
+}
+
+const BASE_URL = resolveBaseURL();
+
+// Exponer para inspección rápida en consola del navegador
+if (typeof window !== "undefined") {
+  console.log("API BASE_URL =", BASE_URL);
+  window.__API_BASE__ = BASE_URL;
+}
 
 // Cliente principal de la app
 const instance = axios.create({
@@ -34,7 +70,6 @@ instance.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // refresh guardado en localStorage (ajusta si usas otra clave)
         const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
         const refreshToken =
           storedUser?.refresh || localStorage.getItem("refreshToken");
@@ -59,7 +94,7 @@ instance.interceptors.response.use(
         // Si falla el refresh, limpia y manda a login
         localStorage.removeItem("accessToken");
         localStorage.removeItem("user");
-        // Ajusta la ruta si tu login está en otro path
+        localStorage.removeItem("refreshToken");
         window.location.href = "/login";
         return Promise.reject(e);
       }
