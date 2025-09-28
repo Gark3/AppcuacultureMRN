@@ -30,7 +30,7 @@ export default {
   methods: {
     async obtenerEstanques() {
       try {
-        const response = await axios.get("http://localhost:8000/api/estanque/");
+        const response = await axios.get("/estanque/");
         this.estanques = response.data;
 
       } catch (error) {

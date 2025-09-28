@@ -100,7 +100,7 @@ export default {
         // Llamada al backend (similar a "Agregar Estanque")
         // Ajusta la URL según tu endpoint real
         const response = await axios.post(
-          "http://localhost:8000/api/producto/",
+          "/producto/",
           {
             estado: producto.value.estado,
             nombre: producto.value.nombre,

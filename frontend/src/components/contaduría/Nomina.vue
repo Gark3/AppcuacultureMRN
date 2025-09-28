@@ -54,7 +54,7 @@ export default {
 
     async function cargarConfiguracion() {
       try {
-        const response = await axios.get("http://localhost:8000/api/nomina/");
+        const response = await axios.get("/nomina/");
         configuraciones.value = response.data.map(config => ({
           ...config,
           observaciones: ""
@@ -67,7 +67,7 @@ export default {
     async function guardarConfiguracion() {
       try {
         const payload = configuraciones.value.map(({ perfil, incluir_en_nomina }) => ({ perfil, incluir_en_nomina }));
-        await axios.post("http://localhost:8000/api/nomina/actualizar-configuracion/", {
+        await axios.post("/nomina/actualizar-configuracion/", {
           configuraciones: payload,
         });
         alert("Configuración guardada con éxito");
@@ -84,7 +84,7 @@ export default {
 
         for (const config of configuraciones.value) {
           if (config.incluir_en_nomina) {
-            await axios.post("http://localhost:8000/api/nomina/pagar/", {
+            await axios.post("/nomina/pagar/", {
               observaciones: config.observaciones
             });
           }

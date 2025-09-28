@@ -118,7 +118,7 @@ export default {
         const userData = JSON.parse(localStorage.getItem("user"));
         const ubicacionStr = `${estanque.ubicacion.lat}//${estanque.ubicacion.lng}`;
 
-        const response = await axios.post("http://localhost:8000/api/estanque/", {
+        const response = await axios.post("/estanque/", {
           estado: 1,
           nombre: estanque.nombre,
           forma: estanque.forma,

@@ -243,7 +243,7 @@ export default {
     },
     obtenerSiembras() {
       axios
-        .get("http://localhost:8000/api/siembra/")
+        .get("/siembra/")
         .then(response => {
           const datos = Array.isArray(response.data) ? response.data : [response.data];
           this.siembras = datos.filter(s =>
@@ -257,7 +257,7 @@ export default {
     },
     obtenerEntradasUnitarias() {
       axios
-        .get("http://localhost:8000/api/entrada-unitaria/")
+        .get("/entrada-unitaria/")
         .then(response => {
           this.entradasUnitarias = Array.isArray(response.data)
             ? response.data
@@ -267,7 +267,7 @@ export default {
     },
     obtenerSalidasUnitarias() {
       axios
-        .get("http://localhost:8000/api/salida-unitaria/")
+        .get("/salida-unitaria/")
         .then(response => {
           this.salidasUnitarias = Array.isArray(response.data)
             ? response.data
@@ -277,7 +277,7 @@ export default {
     },
     obtenerProductos() {
       axios
-        .get("http://localhost:8000/api/producto/")
+        .get("/producto/")
         .then(response => {
           this.productos = Array.isArray(response.data)
             ? response.data
@@ -345,7 +345,7 @@ export default {
         estado: 1
       };
       axios
-        .post("http://localhost:8000/api/salida/", salidaPayload)
+        .post("/salida/", salidaPayload)
         .then(salidaRes => {
           const salidaId = salidaRes.data.id_salida_producto || salidaRes.data.id;
           if (!salidaId) {
@@ -378,7 +378,7 @@ export default {
               estado: 1
             };
             console.log("Enviando payload SalidaUnitaria:", payloadUnitaria);
-            return axios.post("http://localhost:8000/api/salida-unitaria/", payloadUnitaria);
+            return axios.post("/salida-unitaria/", payloadUnitaria);
           });
           Promise.all(salidaUnitariaPromises)
             .then(respuestas => {
@@ -395,7 +395,7 @@ export default {
                     estado: 1
                   };
                   console.log("Enviando payload SalidaEstanque:", payloadEstanque);
-                  return axios.post("http://localhost:8000/api/salida-estanque/", payloadEstanque);
+                  return axios.post("/salida-estanque/", payloadEstanque);
                 });
                 return Promise.all(salidaEstanquePromises);
               }

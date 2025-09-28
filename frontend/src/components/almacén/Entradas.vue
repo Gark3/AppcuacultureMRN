@@ -199,7 +199,7 @@ export default {
   methods: {
     obtenerProveedores() {
       axios
-        .get("http://localhost:8000/api/proveedor/")
+        .get("/proveedor/")
         .then(response => {
           this.proveedores = Array.isArray(response.data)
             ? response.data
@@ -211,7 +211,7 @@ export default {
     },
     obtenerProductos() {
       axios
-        .get("http://localhost:8000/api/producto/")
+        .get("/producto/")
         .then(response => {
           this.productos = Array.isArray(response.data)
             ? response.data
@@ -293,7 +293,7 @@ export default {
 
       // Crea la Entrada principal
       axios
-        .post("http://localhost:8000/api/entrada/", entradaPayload)
+        .post("/entrada/", entradaPayload)
         .then(entradaRes => {
           // Se asume que la respuesta incluye el id de la entrada creada
           const entradaId = entradaRes.data.id_entrada_producto || entradaRes.data.id;
@@ -318,7 +318,7 @@ export default {
               estado: 1
             };
 
-            return axios.post("http://localhost:8000/api/entrada-unitaria/", payload);
+            return axios.post("/entrada-unitaria/", payload);
           });
 
           Promise.all(requests)

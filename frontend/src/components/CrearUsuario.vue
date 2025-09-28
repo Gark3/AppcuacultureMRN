@@ -91,7 +91,7 @@ export default {
           tipo_usuario: 1
         };
 
-        await axios.post("http://localhost:8000/api/usuario/registrar/", payload);
+        await axios.post("/usuario/registrar/", payload);
         this.$router.push("/login");
       } catch (error) {
         console.error("Error al registrar usuario:", error);

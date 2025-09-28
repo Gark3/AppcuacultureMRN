@@ -59,7 +59,7 @@ export default {
         console.log("Proveedor a registrar:", this.proveedor);
 
         // Ajusta la URL y fíjate si tu DRF ocupa '/api/proveedores/' en vez de '/api/proveedor/'
-        const response = await axios.post("http://localhost:8000/api/proveedor/", {
+        const response = await axios.post("/proveedor/", {
           fecha: this.proveedor.fecha,
           estado: this.proveedor.estado,
           nombre: this.proveedor.nombre,

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: 'http://localhost:8000/api/',
+  baseURL: 'http://localhost:8000//api/',
 });
 
 // Adjuntar token a cada solicitud si existe
@@ -36,7 +36,7 @@ instance.interceptors.response.use(
         if (!refreshToken) throw new Error("No refresh token");
 
         // Hacer solicitud para refrescar token
-        const res = await axios.post('http://localhost:8000/api/token/refresh/', {
+        const res = await axios.post('http://localhost:8000//api/token/refresh/', {
           refresh: refreshToken
         });
 

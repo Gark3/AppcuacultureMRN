@@ -142,9 +142,9 @@ export default {
 
       try {
         loading.value = true;
-        await Promise.all(registros.map((registro) => axios.post('http://localhost:8000/api/crecimiento/', registro)));
+        await Promise.all(registros.map((registro) => axios.post('/crecimiento/', registro)));
         alert("Registros de crecimiento guardados exitosamente.");
-        router.push('http://localhost:8000/api/crecimiento');
+        router.push('/crecimiento');
       } catch (error) {
         console.error("Error al registrar crecimiento:", error.response?.data || error.message);
         alert("Ocurrió un error al guardar los datos.");
@@ -156,7 +156,7 @@ export default {
     // Función para obtener rubros filtrados por acuícola (sin importar el usuario que los dio de alta)
     const obtenerRubros = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/rubro/');
+        const response = await axios.get('/rubro/');
         const user = JSON.parse(localStorage.getItem("user"));
         let rubrosFiltrados = response.data;
         if (Array.isArray(rubrosFiltrados)) {
@@ -188,7 +188,7 @@ export default {
         estado: 1
       };
       try {
-        const response = await axios.post('http://localhost:8000/api/rubro/', payload);
+        const response = await axios.post('/rubro/', payload);
         alert("Rubro agregado exitosamente.");
         mostrarAgregarRubro.value = false;
         // Limpiar campos del formulario de rubro
