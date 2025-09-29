@@ -84,21 +84,28 @@ export default {
     },
   },
   methods: {
-    // PK puede llamarse "id" o "id_estanque"
-    getIdEstanque(e) {
-      const id = e?.id ?? e?.id_estanque ?? null;
-      return id == null ? null : Number(id);
+    // ---------- Normalizadores de ids ----------
+    getIdEstanque(obj) {
+      const raw =
+        obj?.id ??
+        obj?.id_estanque ??
+        (obj && typeof obj === 'object' && ('estanque' in obj)
+          ? (obj.estanque?.id ?? obj.estanque?.id_estanque ?? obj.estanque)
+          : null);
+      return raw == null || raw === '' ? null : Number(raw);
     },
-    // acuícola puede venir como ID o como objeto
-    getIdAcuicola(a) {
-      const id = (a && typeof a === 'object') ? (a.id ?? a.id_acuicola ?? null) : a;
-      return id == null ? null : Number(id);
+    getIdAcuicola(obj) {
+      const raw =
+        (obj && typeof obj === 'object'
+          ? (obj.id ?? obj.id_acuicola ?? obj.acuicola ?? null)
+          : obj);
+      return raw == null || raw === '' ? null : Number(raw);
     },
-    // Detecta si una siembra está activa (varios formatos posibles)
+    // siembra activa = estado === 1 (también acepto estatus true)
     isSiembraActiva(s) {
-      if (typeof s.estatus !== 'undefined') return !!s.estatus;
       if (typeof s.estado !== 'undefined') return Number(s.estado) === 1;
-      if (typeof s.finalizada !== 'undefined') return !s.finalizada;
+      if (typeof s.estatus !== 'undefined') return !!s.estatus;
+      // fallback: inactiva si hay fecha_fin, activa si no hay
       if ('fecha_fin' in s) return !s.fecha_fin;
       return false;
     },
@@ -115,7 +122,7 @@ export default {
         }
         const userAcuicolaId = Number(user.acuicola);
 
-        // 1) Traer siembras y estanques
+        // 1) Traer datos
         const [siembrasResp, estanquesResp] = await Promise.all([
           api.get('/siembra/'),
           api.get('/estanque/'),
@@ -124,25 +131,29 @@ export default {
         const todasSiembras = Array.isArray(siembrasResp.data) ? siembrasResp.data : [];
         const todosEstanques = Array.isArray(estanquesResp.data) ? estanquesResp.data : [];
 
-        // 2) Construir set de estanques con siembra activa en mi acuícola
+        // 2) Estanques con siembra activa en MI acuícola
         const ocupados = new Set(
           todasSiembras
-            .filter((s) => this.isSiembraActiva(s) && this.getIdAcuicola(s.acuicola) === userAcuicolaId)
-            .map((s) => this.getIdEstanque(s.estanque))
+            .filter((s) => {
+              const acuicolaId = this.getIdAcuicola(s.acuicola ?? s.id_acuicola);
+              return this.isSiembraActiva(s) && acuicolaId === userAcuicolaId;
+            })
+            .map((s) => this.getIdEstanque(s))
             .filter((id) => id != null)
         );
 
-        // 3) Filtrar estanques: de mi acuícola, activos (si aplica) y no ocupados
+        // 3) Disponibles = estanques de MI acuícola y no ocupados
         this.estanques = todosEstanques.filter((e) => {
           const acuicolaId = this.getIdAcuicola(e.acuicola);
           if (acuicolaId !== userAcuicolaId) return false;
 
-          // si tu modelo tiene "estatus" en Estanque, respétalo
+          // Si tu Estanque tiene "estatus" (activo/inactivo), lo respeto;
+          // si no existe, lo asumo true.
           const activo = (typeof e.estatus !== 'undefined') ? !!e.estatus : true;
           if (!activo) return false;
 
-          const idEstanque = this.getIdEstanque(e);
-          return idEstanque != null && !ocupados.has(idEstanque);
+          const idE = this.getIdEstanque(e);
+          return idE != null && !ocupados.has(idE);
         });
       } catch (error) {
         console.error('Error al obtener estanques:', error);
@@ -154,9 +165,8 @@ export default {
     },
 
     irAFormularioSiembra(estanqueId) {
-      // ⚠️ Si tu ruta real no lleva acento, usa /produccion/
+      // Si tu router no usa acento, cambia a /produccion/...
       this.$router.push(`/producción/siembra/registro/${estanqueId}`);
-      // this.$router.push(`/produccion/siembra/registro/${estanqueId}`);
     },
   },
 
