@@ -1,29 +1,36 @@
 // frontend/src/services/auth.js
 import api from "./axios";
 
-// Login contra SimpleJWT: POST /api/token/
+/**
+ * Autenticación usando tu endpoint personalizado:
+ *   POST /api/login/
+ * Body: { username, password }
+ * Respuesta esperada:
+ *   { refresh, access, usuario_id, nombre, tipo_usuario, acuicola }
+ */
 export async function login(usuario, password) {
   try {
-    const { data } = await api.post("/token/", {
+    const { data } = await api.post("login/", {
       username: usuario,
       password: password,
     });
-    // data = { access, refresh }
 
-    // Guarda tokens
+    // Validación mínima
+    if (!data?.access) {
+      throw new Error("Respuesta de login inválida: falta access token");
+    }
+
+    // Guarda TODO para que el resto de pantallas no dependan de llamadas extra
     localStorage.setItem("accessToken", data.access);
-    localStorage.setItem("refreshToken", data.refresh);
-    // Mantén compatibilidad si otras partes leen 'user.refresh'
-    localStorage.setItem("user", JSON.stringify({ refresh: data.refresh }));
+    localStorage.setItem("refreshToken", data.refresh || "");
+    localStorage.setItem("user", JSON.stringify(data));
+    // data.user ahora contiene, por ejemplo:
+    // { access, refresh, usuario_id, nombre, tipo_usuario, acuicola }
 
-    // Fija el header Authorization para siguientes requests
+    // Opcional: fija el header para la sesión actual
     api.defaults.headers.common.Authorization = `Bearer ${data.access}`;
 
-    // (Opcional) Si tienes un endpoint de perfil, complétalo:
-    // const me = await api.get("/me/"); // ajusta si existe
-    // return { ...data, ...me.data };
-
-    return data;
+    return data; // devuelve también los metadatos útiles
   } catch (error) {
     const responseError = error.response?.data || { detail: "Error desconocido" };
     console.error("Error en login:", responseError);

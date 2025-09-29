@@ -84,98 +84,79 @@ export default {
     },
   },
   methods: {
-    // ---------- Normalizadores ----------
+    // ---------- Normalizadores de ids ----------
     getIdEstanque(obj) {
-      const raw = obj?.id_estanque ?? obj?.id ?? obj;
+      // Acepta: {id}, {id_estanque}, {estanque:{id|id_estanque}}, número plano
+      const raw =
+        obj?.id ??
+        obj?.id_estanque ??
+        (obj && typeof obj === 'object' && ('estanque' in obj)
+          ? (obj.estanque?.id ?? obj.estanque?.id_estanque ?? obj.estanque)
+          : null) ??
+        obj;
       return raw == null || raw === '' ? null : Number(raw);
     },
     getIdAcuicola(obj) {
-      if (obj && typeof obj === 'object') {
-        const raw = obj.id ?? obj.id_acuicola ?? obj.acuicola ?? null;
-        return raw == null || raw === '' ? null : Number(raw);
-      }
-      return obj == null || obj === '' ? null : Number(obj);
+      // Acepta: {acuicola_id}, {id_acuicola}, {acuicola:{id}}, número plano
+      const raw =
+        (obj && typeof obj === 'object'
+          ? (obj.acuicola_id ?? obj.id_acuicola ?? obj.id ?? obj.acuicola ?? null)
+          : obj);
+      return raw == null || raw === '' ? null : Number(raw);
     },
-    // Siembra ACTIVA según tu regla: estado = 1 y estatus = 0
+
+    // ---------- Regla de siembra ACTIVA ----------
+    // ACTIVA solo si: estado === 1 y estatus === 0
     isSiembraActiva(s) {
       const estado  = Number(s?.estado ?? 0);
-      const estatus = Number(s?.estatus ?? 0);
+      // estatus puede venir como 0/1 o boolean
+      const estatus = (s?.estatus === false) ? 0 : Number(s?.estatus ?? 0);
       return estado === 1 && estatus === 0;
     },
 
-    // ---------- Obtener acuícola del usuario ----------
-    async resolveUserAcuicolaId() {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-      // Si ya viene en el objeto user, úsalo
-      const direct =
-        user?.acuicola ??
-        user?.acuicola_id ??
-        user?.perfil?.acuicola ??
-        user?.perfil?.acuicola_id ??
-        user?.perfil?.acuicola?.id;
-
-      if (Number.isFinite(Number(direct))) {
-        return Number(direct);
-      }
-
-      // Fallback: pedimos /perfil/ y tomamos el primero (el backend ya filtra por el usuario autenticado)
-      try {
-        const { data } = await api.get('/perfil/');
-        const perfil = Array.isArray(data) ? data[0] : data;
-        const ac =
-          perfil?.acuicola ??
-          perfil?.acuicola_id ??
-          perfil?.acuicola?.id;
-        return Number(ac);
-      } catch (e) {
-        console.warn('No se pudo resolver el acuícola desde /perfil/.', e);
-        return NaN;
-      }
-    },
-
-    // ---------- Carga de estanques ----------
     async obtenerEstanques() {
       this.cargando = true;
       this.error = null;
       try {
-        const userAcuicolaId = await this.resolveUserAcuicolaId();
-        if (!Number.isFinite(userAcuicolaId)) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) {
           this.estanques = [];
-          this.error = 'No fue posible determinar el acuícola del usuario.';
+          this.error = 'No hay sesión activa.';
           return;
         }
+        const userAcuicolaId = Number(user.acuicola);
 
-        const [estanquesResp, siembrasResp] = await Promise.all([
-          api.get('/estanque/'),
+        // 1) Traer datos
+        const [siembrasResp, estanquesResp] = await Promise.all([
           api.get('/siembra/'),
+          api.get('/estanque/'),
         ]);
 
+        const todasSiembras = Array.isArray(siembrasResp.data) ? siembrasResp.data : [];
         const todosEstanques = Array.isArray(estanquesResp.data) ? estanquesResp.data : [];
-        const todasSiembras  = Array.isArray(siembrasResp.data)  ? siembrasResp.data  : [];
 
-        // Estanques ocupados por siembras ACTIVAS de MI acuícola (estado=1, estatus=0)
+        // 2) Estanques con siembra ACTIVA (estado=1, estatus=0) en MI acuícola
         const ocupados = new Set(
           todasSiembras
             .filter((s) => {
-              const acSiembra = Number(s.acuicola_id ?? s.acuicola);
-              return this.isSiembraActiva(s) && acSiembra === userAcuicolaId;
+              const acuicolaSiembra = this.getIdAcuicola(s.acuicola_id ?? s.acuicola);
+              return this.isSiembraActiva(s) && acuicolaSiembra === userAcuicolaId;
             })
-            .map((s) => Number(s.estanque_id ?? this.getIdEstanque(s.estanque)))
-            .filter((id) => Number.isFinite(id))
+            .map((s) => this.getIdEstanque(s.estanque ?? s.estanque_id ?? s))
+            .filter((id) => id != null)
         );
 
-        // Disponibles: de mi acuícola, activos (estatus true) y no ocupados
+        // 3) Disponibles = estanques de MI acuícola y NO ocupados
         this.estanques = todosEstanques.filter((e) => {
-          const ac = Number(e.acuicola);     // tu /estanque/ lo trae como número
-          const activo = e.estatus === true; // del JSON
-          const idE = this.getIdEstanque(e); // id_estanque
+          const acuicolaId = this.getIdAcuicola(e.acuicola_id ?? e.acuicola);
+          if (acuicolaId !== userAcuicolaId) return false;
 
-          if (!Number.isFinite(idE)) return false;
-          if (ac !== userAcuicolaId) return false;
+          // Si tu Estanque tiene "estatus" (activo/inactivo), respétalo; si no, asume true.
+          const activo = (typeof e.estatus !== 'undefined') ? !!e.estatus : true;
           if (!activo) return false;
 
-          return !ocupados.has(idE);
+          const idE = this.getIdEstanque(e);
+          return idE != null && !ocupados.has(idE);
         });
       } catch (error) {
         console.error('Error al obtener estanques:', error);
@@ -187,6 +168,7 @@ export default {
     },
 
     irAFormularioSiembra(estanqueId) {
+      // Si tu router no usa acento, cambia a /produccion/...
       this.$router.push(`/producción/siembra/registro/${estanqueId}`);
     },
   },
@@ -196,7 +178,6 @@ export default {
   },
 };
 </script>
-
 
 <style scoped>
 .list-grid {
