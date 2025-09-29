@@ -86,28 +86,32 @@ export default {
   methods: {
     // ---------- Normalizadores de ids ----------
     getIdEstanque(obj) {
+      // Acepta: {id}, {id_estanque}, {estanque:{id|id_estanque}}, número plano
       const raw =
         obj?.id ??
         obj?.id_estanque ??
         (obj && typeof obj === 'object' && ('estanque' in obj)
           ? (obj.estanque?.id ?? obj.estanque?.id_estanque ?? obj.estanque)
-          : null);
+          : null) ??
+        obj;
       return raw == null || raw === '' ? null : Number(raw);
     },
     getIdAcuicola(obj) {
+      // Acepta: {acuicola_id}, {id_acuicola}, {acuicola:{id}}, número plano
       const raw =
         (obj && typeof obj === 'object'
-          ? (obj.id ?? obj.id_acuicola ?? obj.acuicola ?? null)
+          ? (obj.acuicola_id ?? obj.id_acuicola ?? obj.id ?? obj.acuicola ?? null)
           : obj);
       return raw == null || raw === '' ? null : Number(raw);
     },
-    // siembra activa = estado === 1 (también acepto estatus true)
+
+    // ---------- Regla de siembra ACTIVA ----------
+    // ACTIVA solo si: estado === 1 y estatus === 0
     isSiembraActiva(s) {
-      if (typeof s.estado !== 'undefined') return Number(s.estado) === 1;
-      if (typeof s.estatus !== 'undefined') return !!s.estatus;
-      // fallback: inactiva si hay fecha_fin, activa si no hay
-      if ('fecha_fin' in s) return !s.fecha_fin;
-      return false;
+      const estado  = Number(s?.estado ?? 0);
+      // estatus puede venir como 0/1 o boolean
+      const estatus = (s?.estatus === false) ? 0 : Number(s?.estatus ?? 0);
+      return estado === 1 && estatus === 0;
     },
 
     async obtenerEstanques() {
@@ -131,24 +135,23 @@ export default {
         const todasSiembras = Array.isArray(siembrasResp.data) ? siembrasResp.data : [];
         const todosEstanques = Array.isArray(estanquesResp.data) ? estanquesResp.data : [];
 
-        // 2) Estanques con siembra activa en MI acuícola
+        // 2) Estanques con siembra ACTIVA (estado=1, estatus=0) en MI acuícola
         const ocupados = new Set(
           todasSiembras
             .filter((s) => {
-              const acuicolaId = this.getIdAcuicola(s.acuicola ?? s.id_acuicola);
-              return this.isSiembraActiva(s) && acuicolaId === userAcuicolaId;
+              const acuicolaSiembra = this.getIdAcuicola(s.acuicola_id ?? s.acuicola);
+              return this.isSiembraActiva(s) && acuicolaSiembra === userAcuicolaId;
             })
-            .map((s) => this.getIdEstanque(s))
+            .map((s) => this.getIdEstanque(s.estanque ?? s.estanque_id ?? s))
             .filter((id) => id != null)
         );
 
-        // 3) Disponibles = estanques de MI acuícola y no ocupados
+        // 3) Disponibles = estanques de MI acuícola y NO ocupados
         this.estanques = todosEstanques.filter((e) => {
-          const acuicolaId = this.getIdAcuicola(e.acuicola);
+          const acuicolaId = this.getIdAcuicola(e.acuicola_id ?? e.acuicola);
           if (acuicolaId !== userAcuicolaId) return false;
 
-          // Si tu Estanque tiene "estatus" (activo/inactivo), lo respeto;
-          // si no existe, lo asumo true.
+          // Si tu Estanque tiene "estatus" (activo/inactivo), respétalo; si no, asume true.
           const activo = (typeof e.estatus !== 'undefined') ? !!e.estatus : true;
           if (!activo) return false;
 
