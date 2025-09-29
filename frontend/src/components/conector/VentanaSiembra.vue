@@ -56,14 +56,16 @@
 </template>
 
 <script>
-import axios from '@/services/axios';
+import api from '@/services/axios'; // tu wrapper de axios
 
 export default {
   name: 'SeleccionarEstanqueSiembra',
   data() {
     return {
       estanques: [],
-      busqueda: ''
+      busqueda: '',
+      cargando: false,
+      error: null,
     };
   },
   computed: {
@@ -71,67 +73,115 @@ export default {
       const filtro = this.busqueda.trim().toLowerCase();
       if (!filtro) return this.estanques;
       return this.estanques.filter((e) =>
-        Object.values(e).some((valor) => String(valor ?? '').toLowerCase().includes(filtro))
+        Object.values(e).some((valor) =>
+          String(valor ?? '').toLowerCase().includes(filtro)
+        )
       );
-    }
+    },
   },
   methods: {
-    // Extrae id cuando acuícola puede venir como objeto o número
-    getAcuicolaId(acuicola) {
-      return (typeof acuicola === 'object' && acuicola !== null)
-        ? acuicola.id_acuicola
-        : acuicola;
+    // —————————————————————————————————————
+    // Helpers de normalización
+    // —————————————————————————————————————
+    getIdEstanque(e) {
+      // PK puede llamarse "id" o "id_estanque"
+      return e?.id ?? e?.id_estanque ?? null;
     },
-    // Extrae id cuando estanque puede venir como objeto o número
-    getEstanqueId(estanque) {
-      return (typeof estanque === 'object' && estanque !== null)
-        ? estanque.id_estanque
-        : estanque;
+    getIdAcuicola(a) {
+      // Puede venir como id o como objeto
+      if (a && typeof a === 'object') {
+        return a.id ?? a.id_acuicola ?? null;
+      }
+      return a ?? null;
     },
+    isSiembraActiva(s) {
+      // Trata de adivinar el campo de "activo"
+      // Ajusta si tu modelo usa uno específico
+      if (typeof s.estatus !== 'undefined') return !!s.estatus;
+      if (typeof s.estado !== 'undefined') return s.estado === 1 || s.estado === '1' || s.estado === true;
+      if (typeof s.finalizada !== 'undefined') return !s.finalizada;
+      if ('fecha_fin' in s) return !s.fecha_fin;
+      // Si no sabemos, por seguridad consideramos que NO está activa
+      return false;
+    },
+
+    // —————————————————————————————————————
+    // Carga de estanques
+    // —————————————————————————————————————
     async obtenerEstanques() {
+      this.cargando = true;
+      this.error = null;
       try {
         const user = JSON.parse(localStorage.getItem('user'));
         if (!user) {
-          console.error('No se encontró un usuario en localStorage.');
           this.estanques = [];
+          this.error = 'No hay sesión activa.';
           return;
         }
 
-        // 1) Siembras activas para excluir sus estanques
-        let siembrasActivas = [];
+        // 1) PRIMERA OPCIÓN: si existe el endpoint del back que ya devuelve disponibles
         try {
-          const siembrasResp = await axios.get('/siembra/');
-          const todas = siembrasResp.data || [];
-          siembrasActivas = todas
-            .filter((s) => s.estado === 1 && this.getAcuicolaId(s.acuicola) === user.acuicola)
-            .map((s) => this.getEstanqueId(s.estanque));
+          const { data } = await api.get('/estanque/disponibles/');
+          // Si responde un array, úsalo tal cual y sal
+          if (Array.isArray(data)) {
+            this.estanques = data;
+            return;
+          }
         } catch (e) {
-          console.warn('No se pudieron obtener siembras; se asume 0 activas.', e);
-          siembrasActivas = [];
+          // Si 404/405/… seguimos con el filtrado en el front
+          // console.warn('No existe /estanque/disponibles/. Filtramos en front.', e);
         }
 
-        // 2) Estanques activos de la misma acuícola y no usados en siembra activa
-        const estanquesResp = await axios.get('/estanque/');
-        const todos = estanquesResp.data || [];
-        this.estanques = todos.filter((e) =>
-          e.estatus === true &&
-          this.getAcuicolaId(e.acuicola) === user.acuicola &&
-          !siembrasActivas.includes(e.id_estanque)
+        // 2) BACKUP: filtrado en el front
+        const [estanquesResp, siembrasResp] = await Promise.all([
+          api.get('/estanque/'),
+          api.get('/siembra/'),
+        ]);
+
+        const todosEstanques = Array.isArray(estanquesResp.data) ? estanquesResp.data : [];
+        const todasSiembras  = Array.isArray(siembrasResp.data) ? siembrasResp.data : [];
+
+        // Set con ids de estanques que tienen siembra ACTIVA
+        const estanquesConSiembraActiva = new Set(
+          todasSiembras
+            .filter((s) => this.isSiembraActiva(s) && this.getIdAcuicola(s.acuicola) === user.acuicola)
+            .map((s) => this.getIdEstanque(s.estanque))
+            .filter((id) => id != null)
         );
+
+        // Filtra por: misma acuícola y que NO estén en el set de activos
+        this.estanques = todosEstanques.filter((e) => {
+          const acuicolaId = this.getIdAcuicola(e.acuicola);
+          const idEstanque = this.getIdEstanque(e);
+          if (acuicolaId !== user.acuicola) return false;
+          if (idEstanque == null) return false;
+
+          // Si también tienes un booleano de "estatus" en Estanque, puedes respetarlo:
+          // const activo = (typeof e.estatus !== 'undefined') ? !!e.estatus : true;
+          // if (!activo) return false;
+
+          return !estanquesConSiembraActiva.has(idEstanque);
+        });
       } catch (error) {
         console.error('Error al obtener estanques:', error);
+        this.error = 'No se pudo cargar la lista de estanques.';
         this.estanques = [];
+      } finally {
+        this.cargando = false;
       }
     },
+
     irAFormularioSiembra(estanqueId) {
       this.$router.push(`/producción/siembra/registro/${estanqueId}`);
-    }
+    },
   },
+
   mounted() {
     this.obtenerEstanques();
-  }
+  },
 };
 </script>
+
 
 <style scoped>
 /* Grilla responsiva para tarjetas usando el tema global */

@@ -48,7 +48,7 @@
 
 <script>
 import { onMounted, reactive, ref, nextTick } from "vue";
-import api from "@/services/axios";            // 👈 usa tu instancia (baseURL + token)
+import axios from "axios";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import markerIconPath from "@/assets/custom_marker.png";
@@ -56,13 +56,12 @@ import markerIconPath from "@/assets/custom_marker.png";
 export default {
   name: "AgregarEstanque",
   setup() {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-
+    const userData = JSON.parse(localStorage.getItem("user"));
     const estanque = reactive({
       nombre: "",
       forma: "",
-      superficie: null,      // input -> convertir a Number
-      profundidad: null,     // input -> convertir a Number
+      superficie: null,
+      profundidad: null,
       infraestructura: "",
       ubicacion: { lat: 25.547546, lng: -108.481789 },
     });
@@ -70,25 +69,24 @@ export default {
     const mapContainer = ref(null);
     let map, marker;
 
-    const markerIcon = L.icon({ iconUrl: markerIconPath, iconSize: [25, 25] });
+    const markerIcon = L.icon({
+      iconUrl: markerIconPath,
+      iconSize: [25, 25],
+    });
 
     const initMap = () => {
       if (!mapContainer.value) return;
 
-      map = L.map(mapContainer.value).setView(
-        [estanque.ubicacion.lat, estanque.ubicacion.lng],
-        13
-      );
-
+      map = L.map(mapContainer.value).setView([estanque.ubicacion.lat, estanque.ubicacion.lng], 13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
 
-      marker = L.marker(
-        [estanque.ubicacion.lat, estanque.ubicacion.lng],
-        { icon: markerIcon, draggable: true }
-      ).addTo(map);
+      marker = L.marker([estanque.ubicacion.lat, estanque.ubicacion.lng], {
+        icon: markerIcon,
+        draggable: true,
+      }).addTo(map);
 
       marker.on("dragend", () => {
         const { lat, lng } = marker.getLatLng();
@@ -105,48 +103,38 @@ export default {
     };
 
     const guardarEstanque = async () => {
-      // Validación básica
-      const sup = Number(estanque.superficie);
-      const pro = Number(estanque.profundidad);
       if (
         !estanque.nombre ||
         !estanque.forma ||
         !estanque.infraestructura ||
-        !(sup > 0) || !(pro > 0)
+        !(estanque.superficie > 0) ||
+        !(estanque.profundidad > 0)
       ) {
         alert("Por favor, complete todos los campos correctamente.");
         return;
       }
 
       try {
-        // Si tu back espera "lat//lng" como string
+        const userData = JSON.parse(localStorage.getItem("user"));
         const ubicacionStr = `${estanque.ubicacion.lat}//${estanque.ubicacion.lng}`;
 
-        // Asegura IDs numéricos si son FK
-        const usuarioId = Number(userData?.usuario_id);
-        const acuicolaId = Number(userData?.acuicola);
-
-        const payload = {
-          // Quita/ajusta estos campos si tu serializer no los espera:
-          // estado: 1,
-          // estatus: true,
-
+        const response = await axios.post("/estanque/", {
+          estado: 1,
           nombre: estanque.nombre,
           forma: estanque.forma,
-          superficie: sup,
-          profundidad: pro,
+          superficie: estanque.superficie,
+          profundidad: estanque.profundidad,
           infraestructura: estanque.infraestructura,
-          ubicacion: ubicacionStr,
-          usuario: usuarioId,   // 👈 FK numérica
-          acuicola: acuicolaId, // 👈 FK numérica
-        };
+          ubicacion: ubicacionStr, // el backend espera string "lat//lng"
+          estatus: true,
+          usuario: userData.usuario_id,
+          acuicola: userData.acuicola,
+        });
 
-        // Usa la instancia "api" para llevar Authorization y baseURL
-        const { data } = await api.post("/estanque/", payload);
-        console.log("Estanque creado:", data);
         alert("Estanque guardado correctamente.");
+        console.log("Respuesta del backend:", response.data);
 
-        // Reset visual del mapa/form
+        // Limpiar formulario (sin romper ubicacion como objeto)
         estanque.nombre = "";
         estanque.forma = "";
         estanque.superficie = null;
@@ -155,15 +143,15 @@ export default {
         estanque.ubicacion = { lat: 25.547546, lng: -108.481789 };
         if (marker) marker.setLatLng([estanque.ubicacion.lat, estanque.ubicacion.lng]);
         if (map) map.setView([estanque.ubicacion.lat, estanque.ubicacion.lng], 13);
-      } catch (err) {
-        const status = err.response?.status;
-        const detail = err.response?.data || err.message;
-        console.error("Error al guardar estanque:", status, detail);
-        alert(`Error (${status ?? "?"}): ${JSON.stringify(detail, null, 2)}`);
+      } catch (error) {
+        console.error("Error al guardar el estanque:", error);
+        alert("Hubo un error al guardar el estanque.");
       }
     };
 
-    onMounted(() => nextTick(initMap));
+    onMounted(() => {
+      nextTick(() => initMap());
+    });
 
     return { estanque, guardarEstanque, mapContainer };
   },
