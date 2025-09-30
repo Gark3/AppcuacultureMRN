@@ -140,13 +140,8 @@ export default {
 
     async cargarAcuicolas() {
       try {
-        const { data } = await axios.get("/acuicola/");
-        // Normaliza a {id, nombre, descripcion?}
-        this.acuicolas = Array.isArray(data) ? data.map(x => ({
-          id: x.id ?? x.id_acuicola ?? x.pk ?? null,
-          nombre: x.nombre ?? x.name ?? "",
-          descripcion: x.descripcion ?? ""
-        })).filter(x => x.id) : [];
+        const { data } = await axios.get("/acuicola/public/");
+        this.acuicolas = Array.isArray(data) ? data : [];
       } catch (e) {
         console.warn("No se pudieron cargar acuícolas:", e);
         this.acuicolas = [];
