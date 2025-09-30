@@ -49,8 +49,8 @@ export default {
   data() {
     return {
       loginVisible: false,
-      usuario: 'GARK', // Valor de prueba, puedes quitarlo o modificarlo
-      password: '12345', // Valor de prueba, puedes quitarlo o modificarlo
+      usuario:'', // Valor de prueba, puedes quitarlo o modificarlo
+      password: '', // Valor de prueba, puedes quitarlo o modificarlo
       loginFailed: false,
     };
   },
