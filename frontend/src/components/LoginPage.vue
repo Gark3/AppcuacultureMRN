@@ -61,15 +61,12 @@ export default {
     async login() {
       try {
         // Se llama a la función de autenticación
-        console.log(this.usuario);
-        console.log(this.password);
         const response = await apiLogin(this.usuario, this.password);
         
         // Se espera un objeto JSON con: access, refresh, usuario_id, nombre, tipo_usuario, acuicola
         localStorage.setItem("accessToken", response.access);
         localStorage.setItem("user", JSON.stringify(response));
 
-        console.log("Login exitoso", response);
         this.$emit('login');   // Notifica al padre (por ejemplo, App.vue)
         this.loginFailed = false;
         // Redirecciona a la ruta principal

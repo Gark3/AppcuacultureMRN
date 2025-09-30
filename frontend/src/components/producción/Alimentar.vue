@@ -35,10 +35,10 @@
 </template>
 
 <script>
-import axios from '@/services/axios';
+import api from '@/services/axios'; // tu instancia con interceptores
 
 export default {
-  props: ['id'], // ID de la siembra
+  props: ['id'], // ID de la siembra (viene por ruta)
   data() {
     return {
       alimentos: ["Pellets", "Harina de pescado", "Alimento balanceado"],
@@ -49,33 +49,57 @@ export default {
         supervivencia: null,
         clima: "",
         observacion: "",
-        estado: 1,
-        siembra: null,
-        usuario: null,
-        acuicola: null,
+        // estado: 1, // si en el modelo tiene default=1, ni lo mandes; si no, descomenta
       },
+      guardando: false,
     };
   },
   mounted() {
-    const user = JSON.parse(localStorage.getItem("user"));
-    this.registro.siembra = this.id;
-    this.registro.usuario = user.usuario_id;
-    this.registro.acuicola = user.acuicola;
+    // Forzamos la siembra a número desde la prop
+    // (no lo guardo en registro para no mezclar campos controlados por back)
+    this.siembraId = Number(this.id);
   },
   methods: {
     async submitForm() {
       try {
-        const response = await axios.post('/alimentar/', this.registro);
+        this.guardando = true;
+
+        // Validación básica
+        if (!this.registro.tipo || !this.siembraId) {
+          alert("Selecciona un tipo de alimento y verifica la siembra.");
+          return;
+        }
+
+        // Armamos el payload SIN usuario/acuicola (los pone el backend)
+        const payload = {
+          tipo: String(this.registro.tipo).trim(),
+          lote: this.registro.lote ? String(this.registro.lote).trim() : "",
+          kg: this.registro.kg != null ? Number(this.registro.kg) : null,
+          supervivencia: this.registro.supervivencia != null ? Number(this.registro.supervivencia) : null,
+          clima: this.registro.clima ? String(this.registro.clima).trim() : "",
+          observacion: this.registro.observacion ? String(this.registro.observacion).trim() : "",
+          siembra: this.siembraId,         // <- numérico
+          // estado: 1,                     // <- solo si tu modelo lo exige explícitamente
+        };
+
+        const { data } = await api.post('/alimentar/', payload);
+
         alert("¡Registro de alimentación guardado exitosamente!");
+        // Redirección: ajusta la ruta si tu router no usa acentos
         this.$router.push('/producción/alimentar');
       } catch (error) {
         console.error("Error al registrar alimentación:", error);
-        alert("Ocurrió un error al guardar.");
+        // Puedes mostrar un detalle si viene del backend:
+        const msg = error?.response?.data?.detail || "Ocurrió un error al guardar.";
+        alert(msg);
+      } finally {
+        this.guardando = false;
       }
     }
   }
 };
 </script>
+
 
 <style scoped>
 .registro-siembra {
