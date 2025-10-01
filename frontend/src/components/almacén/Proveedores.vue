@@ -3,7 +3,7 @@
   <section class="card container">
     <div class="card__header">
       <h2 class="card__title">Proveedores</h2>
-      <p class="card__sub">Consulta tus proveedores y revisa sus entregas.</p>
+      <p class="card__sub">Consulta tus proveedores y revisa el detalle de sus entregas.</p>
     </div>
 
     <div class="field">
@@ -19,20 +19,19 @@
     </div>
   </section>
 
-  <!-- Tabla -->
+  <!-- Tabla de proveedores -->
   <section class="container">
     <div class="table-wrap">
       <table class="table table--zebra">
         <thead>
           <tr>
-            <th style="width: 80px;">ID</th>
+            <th style="width:80px;">ID</th>
             <th>Nombre</th>
             <th>Correo</th>
-            <th style="width: 160px;">Teléfono</th>
-            <th style="width: 120px;" class="text-right">Acciones</th>
+            <th style="width:160px;">Teléfono</th>
+            <th style="width:120px;" class="text-right">Acciones</th>
           </tr>
         </thead>
-
         <tbody>
           <tr v-if="loading && proveedores.length === 0">
             <td colspan="5" class="text-center">Cargando proveedores…</td>
@@ -69,13 +68,15 @@
     </div>
   </section>
 
-  <!-- Modal de entregas -->
+  <!-- Modal: detalle de entradas unitarias -->
   <div v-if="showModal" class="overlay" @click.self="cerrarModal">
     <div class="card modal-card">
       <div class="card__header" style="display:flex; align-items:center; justify-content:space-between;">
         <div>
-          <h3 class="card__title">Entregas del proveedor</h3>
-          <p class="card__sub"><strong>Proveedor:</strong> {{ proveedorActivo?.nombre }} (ID: {{ proveedorActivo?.id }})</p>
+          <h3 class="card__title">Detalle de entregas</h3>
+          <p class="card__sub">
+            <strong>Proveedor:</strong> {{ proveedorActivo?.nombre }} (ID: {{ proveedorActivo?.id }})
+          </p>
         </div>
         <button class="btn btn--ghost btn--sm" @click="cerrarModal">✕</button>
       </div>
@@ -87,26 +88,30 @@
               <th style="width:80px;">ID</th>
               <th style="width:110px;">Fecha</th>
               <th>Producto</th>
-              <th>Descripción</th>
-              <th style="width:110px;">Cantidad</th>
-              <th style="width:140px;">Presentación</th>
+              <th style="width:110px;">Kg</th>
+              <th style="width:110px;">Unidades</th>
+              <th style="width:110px;">Costo</th>
+              <th style="width:120px;">Lote</th>
+              <th style="width:160px;">Presentación</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loadingEntregas">
-              <td colspan="6" class="text-center">Cargando entregas…</td>
+              <td colspan="8" class="text-center">Cargando entregas…</td>
             </tr>
 
             <tr v-else-if="entregas.length === 0">
-              <td colspan="6" class="text-center">No hay entregas registradas para este proveedor.</td>
+              <td colspan="8" class="text-center">No hay entregas registradas para este proveedor.</td>
             </tr>
 
             <tr v-else v-for="e in entregas" :key="e.id">
               <td>{{ e.id }}</td>
               <td>{{ e.fecha }}</td>
               <td>{{ e.producto || '—' }}</td>
-              <td>{{ e.descripcion || '—' }}</td>
-              <td>{{ e.cantidad ?? '—' }}</td>
+              <td>{{ e.cantidad_kg ?? '—' }}</td>
+              <td>{{ e.unidades ?? '—' }}</td>
+              <td>{{ e.costo ?? '—' }}</td>
+              <td>{{ e.lote || '—' }}</td>
               <td>{{ e.presentacion || '—' }}</td>
             </tr>
           </tbody>
@@ -121,45 +126,55 @@
 </template>
 
 <script>
-import axios from "axios"; // o '@/services/axios' si ya tienes el wrapper
-import { ref, computed, onMounted } from "vue";
+import axios from '@/services/axios'; // usa tu wrapper como en "Siembras Activas"
+import { ref, computed, onMounted } from 'vue';
 
-/* ==== ENDPOINTS: ajusta si es necesario ==== */
+/* ====== ENDPOINTS (ajústalos si tus rutas difieren) ====== */
 const ENDPOINTS = {
-  proveedores: "/proveedor/",
-  // si tu filtro es distinto, cámbialo aquí (ej: /entrada/?proveedor_id=)
-  entregasPorProveedor: (id) => `/entrada/?proveedor=${id}`,
+  proveedores: '/proveedor/',                                // lista de proveedores
+  entradasPorProveedor: (provId) => `/entrada/?proveedor=${provId}`, // ids de entradas del proveedor
+  entradaUnitariaPorEntrada: (entradaId) => `/entradaunitaria/?entrada=${entradaId}`,
+  entradaUnitariaPorLista: (idsCSV) => `/entradaunitaria/?entrada__in=${idsCSV}`, // si tu API soporta __in
+  productos: '/producto/',                                   // catálogo para nombre/presentación
 };
 
-/* ==== MAPEADORES: adapta a tus serializers si varían los nombres ==== */
+/* ====== Mapers para alinear los campos del API con la UI ====== */
 function mapProveedor(apiObj) {
   return {
     id: apiObj.id ?? apiObj.id_proveedor ?? apiObj.pk,
-    nombre: apiObj.nombre ?? apiObj.razon_social ?? "",
-    correo: apiObj.correo ?? apiObj.email ?? "",
-    telefono: apiObj.telefono ?? apiObj.celular ?? "",
+    nombre: apiObj.nombre ?? apiObj.razon_social ?? '',
+    correo: apiObj.correo ?? apiObj.email ?? '',
+    telefono: apiObj.telefono ?? apiObj.celular ?? '',
   };
 }
 
-function mapEntrega(apiObj) {
+function mapEntrada(apiObj) {
+  return { id: apiObj.id ?? apiObj.id_entrada ?? apiObj.pk };
+}
+
+function mapEntradaUnitaria(apiObj, productosById = {}) {
+  const prodId = apiObj.producto ?? apiObj.producto_id ?? apiObj.id_producto;
+  const prod = productosById[prodId] || {};
   return {
-    id: apiObj.id ?? apiObj.id_entrada ?? apiObj.pk,
-    fecha: (apiObj.fecha || "").toString().slice(0, 10),
-    producto: apiObj.producto_nombre ?? apiObj.producto?.nombre ?? apiObj.producto ?? "",
-    descripcion: apiObj.descripcion ?? apiObj.detalle ?? apiObj.nota ?? "",
-    cantidad: apiObj.cantidad ?? apiObj.cant ?? apiObj.unidades ?? "",
-    presentacion: apiObj.presentacion ?? apiObj.producto?.presentacion ?? "",
+    id: apiObj.id ?? apiObj.id_entrada_unitaria ?? apiObj.pk,
+    fecha: (apiObj.fecha || '').toString().slice(0, 10),
+    producto: apiObj.producto_nombre ?? prod.nombre ?? prodId ?? '',
+    presentacion: apiObj.presentacion ?? prod.presentacion ?? '',
+    cantidad_kg: apiObj.cantidad_kg ?? apiObj.kg ?? '',
+    unidades: apiObj.unidades ?? apiObj.cantidad ?? '',
+    costo: apiObj.costo ?? '',
+    lote: apiObj.lote ?? '',
   };
 }
 
 export default {
-  name: "ListaProveedores",
+  name: 'ListaProveedores',
   setup() {
     const proveedores = ref([]);
     const loading = ref(false);
     const error = ref(null);
 
-    const search = ref("");
+    const search = ref('');
     const page = ref(1);
     const pageSize = ref(10);
 
@@ -179,12 +194,14 @@ export default {
     });
 
     const startIdx = computed(() => (page.value - 1) * pageSize.value);
-    const endIdx = computed(() => Math.min(startIdx.value + pageSize.value, proveedoresFiltrados.value.length));
-    const paginated = computed(() => proveedoresFiltrados.value.slice(startIdx.value, endIdx.value));
+    const endIdx = computed(() =>
+      Math.min(startIdx.value + pageSize.value, proveedoresFiltrados.value.length)
+    );
+    const paginated = computed(() =>
+      proveedoresFiltrados.value.slice(startIdx.value, endIdx.value)
+    );
 
-    function onSearch() {
-      page.value = 1;
-    }
+    function onSearch() { page.value = 1; }
 
     async function cargarProveedores() {
       try {
@@ -194,7 +211,7 @@ export default {
         const arr = Array.isArray(data) ? data : (data.results || []);
         proveedores.value = arr.map(mapProveedor);
       } catch (e) {
-        error.value = "No se pudieron cargar los proveedores";
+        error.value = 'No se pudieron cargar los proveedores';
         console.error(e);
       } finally {
         loading.value = false;
@@ -206,12 +223,52 @@ export default {
       showModal.value = true;
       entregas.value = [];
       loadingEntregas.value = true;
+
       try {
-        const { data } = await axios.get(ENDPOINTS.entregasPorProveedor(proveedor.id));
-        const arr = Array.isArray(data) ? data : (data.results || []);
-        entregas.value = arr.map(mapEntrega);
+        // 1) Entradas del proveedor
+        const { data: entradasRes } = await axios.get(
+          ENDPOINTS.entradasPorProveedor(proveedor.id)
+        );
+        const entradasArr = Array.isArray(entradasRes)
+          ? entradasRes
+          : (entradasRes.results || []);
+        const entradas = entradasArr.map(mapEntrada);
+        const ids = entradas.map((e) => e.id);
+
+        if (ids.length === 0) { entregas.value = []; return; }
+
+        // 2) Catálogo de productos (para nombre/presentación)
+        const { data: prodsRes } = await axios.get(ENDPOINTS.productos);
+        const prodsArr = Array.isArray(prodsRes)
+          ? prodsRes
+          : (prodsRes.results || []);
+        const productosById = {};
+        for (const p of prodsArr) {
+          const pid = p.id ?? p.id_producto ?? p.pk;
+          productosById[pid] = { nombre: p.nombre, presentacion: p.presentacion };
+        }
+
+        // 3) Entradas unitarias (detalle): intentar con __in, si falla hacer 1 request por entrada
+        let unitArr = [];
+        const idsCSV = ids.join(',');
+        try {
+          const { data: euRes } = await axios.get(
+            ENDPOINTS.entradaUnitariaPorLista(idsCSV)
+          );
+          unitArr = Array.isArray(euRes) ? euRes : (euRes.results || []);
+        } catch {
+          const listas = await Promise.all(
+            ids.map((id) => axios.get(ENDPOINTS.entradaUnitariaPorEntrada(id)))
+          );
+          unitArr = listas.flatMap((r) =>
+            Array.isArray(r.data) ? r.data : (r.data.results || [])
+          );
+        }
+
+        // 4) Mapear a la UI
+        entregas.value = unitArr.map((u) => mapEntradaUnitaria(u, productosById));
       } catch (e) {
-        console.error("Error al cargar entregas:", e);
+        console.error('Error al cargar entregas:', e);
         entregas.value = [];
       } finally {
         loadingEntregas.value = false;
