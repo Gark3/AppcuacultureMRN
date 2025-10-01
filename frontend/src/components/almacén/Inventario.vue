@@ -129,7 +129,7 @@ const ENDPOINTS = {
   productos: '/producto/',
   entradas: '/entrada/',
   proveedores: '/proveedor/',
-  entradaUnitaria: '/entrada-unitaria/',   // <- esta es tu ruta real
+  entradaUnitaria: '/entrada-unitaria/',   // ruta real
 };
 
 /* ===== Helpers ===== */
@@ -138,7 +138,7 @@ const toNum = (v) =>
     ? null
     : Number(v);
 
-/* ===== Mappers robustos ===== */
+/* ===== Mappers ===== */
 function mapProducto(apiObj) {
   return {
     id: apiObj.id ?? apiObj.id_producto ?? apiObj.pk,
@@ -195,9 +195,13 @@ export default {
     const filtro = ref('');
     const loading = ref(false);
 
-    const inventario = ref([]);     // [{id, nombre, rubro, cantidad, costoAcumulado}]
-    const productosById = ref({});  // id -> producto
-    const unitByProducto = ref({}); // idProducto -> [detalle para modal]
+    const inventario = ref([]);           // [{id, nombre, rubro, cantidad, costoAcumulado}]
+    const productosById = ref({});        // id -> producto
+    const unitRawByProducto = ref({});    // idProducto -> [unitaria sin resolver proveedor]
+
+    // catálogos/mapas para resolver proveedor por entrada
+    const entradaToProveedor = ref({});   // entradaId -> proveedorId
+    const proveedorToNombre  = ref({});   // proveedorId -> nombre
 
     // modal
     const showModal = ref(false);
@@ -241,10 +245,11 @@ export default {
         : '0.00';
     }
 
+    /* ============= CARGA ============= */
     async function cargarInventario() {
       loading.value = true;
       try {
-        // Traemos datasets secuencialmente (menos picos)
+        // Traer datasets (secuencial para ser suaves con el backend)
         const prodRes = await axios.get(ENDPOINTS.productos);
         const euRes   = await axios.get(ENDPOINTS.entradaUnitaria);
         const entRes  = await axios.get(ENDPOINTS.entradas);
@@ -255,51 +260,37 @@ export default {
         const entradas    = (Array.isArray(entRes.data)  ? entRes.data  : (entRes.data.results  || [])).map(mapEntrada);
         const proveedores = (Array.isArray(provRes.data) ? provRes.data : (provRes.data.results || [])).map(mapProveedor);
 
-        // Diccionarios
+        // Catálogos en memoria
         productosById.value = Object.fromEntries(productos.map(p => [toNum(p.id), p]));
-
-        const entradaToProveedor = {};
+        entradaToProveedor.value = {};
         for (const e of entradas) {
-          if (e.id != null) entradaToProveedor[e.id] = e.proveedor ?? null;
+          if (e.id != null) entradaToProveedor.value[e.id] = e.proveedor ?? null;
         }
-
-        const proveedorToNombre = {};
+        proveedorToNombre.value = {};
         for (const p of proveedores) {
-          if (p.id != null) proveedorToNombre[p.id] = p.nombre;
+          if (p.id != null) proveedorToNombre.value[p.id] = p.nombre;
         }
 
-        // Filtra por acuícola si viene seteado en la unitaria
+        // Filtra por acuícola si viene la columna
         const unitariasFiltradas = unitarias.filter(u =>
           (acuicolaId == null) || (u.acuicola == null) || (u.acuicola === acuicolaId)
         );
 
-        // Agrupación por producto
+        // Agrupar por producto y acumular totales
         const totales = {};
-        const bucket = {};
+        const rawBucket = {};
         for (const u of unitariasFiltradas) {
           if (!u.producto) continue;
 
           if (!totales[u.producto]) totales[u.producto] = { cantidad: 0, costo: 0 };
-          if (!bucket[u.producto]) bucket[u.producto] = [];
+          if (!rawBucket[u.producto]) rawBucket[u.producto] = [];
 
           totales[u.producto].cantidad += Number.isFinite(u.unidades) ? u.unidades : 0;
           totales[u.producto].costo    += Number.isFinite(u.costo)    ? u.costo    : 0;
 
-          const provId = entradaToProveedor[u.entrada] ?? null;
-          const provNombre = (provId != null ? proveedorToNombre[provId] : null) ?? '';
-
-          bucket[u.producto].push({
-            id: u.id,
-            fecha: u.fecha,
-            proveedor: provNombre,
-            lote: u.lote,
-            kg: u.cantidad_kg,
-            unidades: u.unidades,
-            costo: u.costo,
-          });
+          rawBucket[u.producto].push(u); // guardamos la unit. cruda para resolver proveedor después
         }
-
-        unitByProducto.value = bucket;
+        unitRawByProducto.value = rawBucket;
 
         // Construye la tabla final
         inventario.value = Object.keys(totales).map(pid => {
@@ -320,10 +311,76 @@ export default {
       }
     }
 
-    function verDetalles(item) {
+    /* ====== Resolve proveedor para un entradaId ====== */
+    async function resolveProveedorNombreFromEntrada(entradaId) {
+      if (entradaId == null) return '';
+
+      // 1) intenta por el mapa en memoria
+      const provIdMap = entradaToProveedor.value[entradaId];
+      if (provIdMap != null) {
+        const cachedName = proveedorToNombre.value[provIdMap];
+        if (cachedName) return cachedName;
+      }
+
+      // 2) pide /entrada/<id>/ para obtener el proveedor
+      try {
+        const { data: ent } = await axios.get(`${ENDPOINTS.entradas}${entradaId}/`);
+        const provId =
+          toNum(
+            ent?.proveedor ??
+            ent?.proveedor_id ??
+            ent?.id_proveedor ??
+            (typeof ent?.proveedor === 'object' ? ent?.proveedor?.id : null)
+          );
+        if (provId == null) return '';
+
+        // guarda en cache el mapping entrada -> proveedor
+        entradaToProveedor.value[entradaId] = provId;
+
+        // 3) resuelve el nombre del proveedor (catálogo o detalle)
+        let name = proveedorToNombre.value[provId];
+        if (!name) {
+          const { data: prov } = await axios.get(`${ENDPOINTS.proveedores}${provId}/`);
+          name = prov?.nombre ?? prov?.razon_social ?? '';
+          if (name) proveedorToNombre.value[provId] = name; // cache
+        }
+        return name || '';
+      } catch {
+        return '';
+      }
+    }
+
+    /* ============= MODAL ============= */
+    async function verDetalles(item) {
       activo.value = item;
-      detalle.value = unitByProducto.value[item.id] || [];
+      detalle.value = [];
       showModal.value = true;
+      loadingDetalle.value = true;
+
+      try {
+        const raws = unitRawByProducto.value[item.id] || [];
+        // arma filas resolviendo proveedor por cada entrada
+        const rows = await Promise.all(
+          raws.map(async (u) => {
+            const provNombre = await resolveProveedorNombreFromEntrada(u.entrada);
+            return {
+              id: u.id,
+              fecha: u.fecha,
+              proveedor: provNombre,
+              lote: u.lote,
+              kg: u.cantidad_kg,
+              unidades: u.unidades,
+              costo: u.costo,
+            };
+          })
+        );
+        detalle.value = rows;
+      } catch (e) {
+        console.error('No se pudo cargar el detalle del producto:', e);
+        detalle.value = [];
+      } finally {
+        loadingDetalle.value = false;
+      }
     }
 
     function cerrarModal() {
