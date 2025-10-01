@@ -1,265 +1,323 @@
 <template>
-    <div class="registro-siembra">
-      <h1>Inventario</h1>
-  
-      <!-- Barra de búsqueda -->
-      <div class="form-group">
-        <label for="buscar">Buscar producto:</label>
-        <input
-          type="text"
-          id="buscar"
-          v-model="filtro"
-          placeholder="Buscar por ID, Nombre o Rubro"
-        />
-      </div>
-  
-      <!-- Tabla de productos -->
-      <table>
+  <!-- Encabezado + búsqueda -->
+  <section class="card container">
+    <div class="card__header">
+      <h2 class="card__title">Inventario</h2>
+      <p class="card__sub">Consulta el stock y el costo acumulado por producto.</p>
+    </div>
+
+    <div class="field">
+      <label for="buscar">Buscar producto</label>
+      <input
+        id="buscar"
+        v-model="filtro"
+        class="input"
+        type="text"
+        placeholder="ID, nombre o rubro"
+      />
+    </div>
+  </section>
+
+  <!-- Tabla de inventario -->
+  <section class="container">
+    <div class="table-wrap">
+      <table class="table table--zebra">
         <thead>
           <tr>
-            <th>ID</th>
+            <th style="width:80px;">ID</th>
             <th>Nombre</th>
             <th>Rubro</th>
-            <th>Cantidad</th>
-            <th>Costo Acumulado</th>
-            <th>Acción</th>
+            <th style="width:140px;">Cantidad</th>
+            <th style="width:160px;">Costo acumulado</th>
+            <th style="width:120px;" class="text-right">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="producto in productosFiltrados"
-            :key="producto.id"
-          >
-            <td>{{ producto.id }}</td>
-            <td>{{ producto.nombre }}</td>
-            <td>{{ producto.rubro }}</td>
-            <td>{{ producto.cantidad }}</td>
-            <td>{{ producto.costoAcumulado }}</td>
-            <td>
-              <button @click="verDetalles(producto)">Ver</button>
+          <tr v-if="loading && inventario.length === 0">
+            <td colspan="6" class="text-center">Cargando inventario…</td>
+          </tr>
+
+          <tr v-for="item in paginated" :key="item.id">
+            <td>{{ item.id }}</td>
+            <td>{{ item.nombre || '—' }}</td>
+            <td>{{ item.rubro || '—' }}</td>
+            <td>{{ formatNum(item.cantidad) }}</td>
+            <td>$ {{ formatMoney(item.costoAcumulado) }}</td>
+            <td class="text-right">
+              <button class="btn btn--primary btn--sm" @click="verDetalles(item)">
+                Ver
+              </button>
             </td>
+          </tr>
+
+          <tr v-if="!loading && filtrados.length === 0">
+            <td colspan="6" class="text-center">Sin resultados</td>
           </tr>
         </tbody>
       </table>
-  
-      <!-- Modal de detalles -->
-      <div v-if="productoSeleccionado" class="modal-overlay" @click.self="cerrarModal">
-        <div class="modal-content">
-          <h2>Detalles del producto</h2>
-          <p><strong>ID:</strong> {{ productoSeleccionado.id }}</p>
-          <p><strong>Nombre:</strong> {{ productoSeleccionado.nombre }}</p>
-          <p><strong>Rubro:</strong> {{ productoSeleccionado.rubro }}</p>
-          <h3>Entradas</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha de entrada</th>
-                <th>Proveedor</th>
-                <th>Número de lote</th>
-                <th>Costo</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="entrada in productoSeleccionado.entradas" :key="entrada.lote">
-                <td>{{ entrada.fecha }}</td>
-                <td>{{ entrada.proveedor }}</td>
-                <td>{{ entrada.lote }}</td>
-                <td>{{ entrada.costo }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <button @click="cerrarModal">Cerrar</button>
-        </div>
+    </div>
+
+    <!-- Paginación -->
+    <div class="container" style="display:flex; align-items:center; justify-content:space-between; padding:10px 0;">
+      <span class="text-muted small">
+        Mostrando {{ startIdx + 1 }}–{{ endIdx }} de {{ filtrados.length }}
+      </span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn--outline btn--sm" :disabled="page === 1" @click="page--">Anterior</button>
+        <button class="btn btn--outline btn--sm" :disabled="endIdx >= filtrados.length" @click="page++">Siguiente</button>
       </div>
     </div>
-  </template>
-  
-  <script>
-  export default {
-    name: "Inventario",
-    data() {
-      return {
-        filtro: "",
-        productos: [],
-        productoSeleccionado: null,
-      };
-    },
-    computed: {
-      productosFiltrados() {
-        const filtro = this.filtro.toLowerCase();
-        return this.productos.filter(
-          (p) =>
-            p.id.toString().includes(filtro) ||
-            p.nombre.toLowerCase().includes(filtro) ||
-            p.rubro.toLowerCase().includes(filtro)
-        );
-      },
-    },
-    methods: {
-      verDetalles(producto) {
-        this.productoSeleccionado = producto;
-      },
-      cerrarModal() {
-        this.productoSeleccionado = null;
-      },
-      generarProductos() {
-        const rubros = ["Alimento", "Medicamento", "Equipamiento"];
-        for (let i = 1; i <= 20; i++) {
-          const entradas = Array.from({ length: 5 }, (_, j) => ({
-            fecha: `2025-01-${10 + j}`,
-            proveedor: `Proveedor ${i}`,
-            lote: `L${i}${j}`,
-            costo: (Math.random() * 1000).toFixed(2),
-          }));
-  
-          const cantidad = entradas.length * 100;
-          const costoAcumulado = entradas.reduce(
-            (acc, entrada) => acc + parseFloat(entrada.costo),
-            0
-          );
-  
-          this.productos.push({
-            id: i,
-            nombre: `Producto ${i}`,
-            rubro: rubros[i % rubros.length],
-            cantidad,
-            costoAcumulado: costoAcumulado.toFixed(2),
-            entradas,
+  </section>
+
+  <!-- Modal: detalle por producto -->
+  <div v-if="showModal" class="overlay" @click.self="cerrarModal">
+    <div class="card modal-card">
+      <div class="card__header" style="display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <h3 class="card__title">Detalle de entradas</h3>
+          <p class="card__sub">
+            <strong>Producto:</strong> {{ activo?.nombre }} (ID: {{ activo?.id }})
+          </p>
+        </div>
+        <button class="btn btn--ghost btn--sm" @click="cerrarModal">✕</button>
+      </div>
+
+      <div class="table-wrap" style="max-height:60vh;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:110px;">Fecha</th>
+              <th>Proveedor</th>
+              <th style="width:120px;">Lote</th>
+              <th style="width:110px;">Kg</th>
+              <th style="width:110px;">Unidades</th>
+              <th style="width:120px;">Costo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="loadingDetalle">
+              <td colspan="6" class="text-center">Cargando detalle…</td>
+            </tr>
+            <tr v-else-if="detalle.length === 0">
+              <td colspan="6" class="text-center">No hay entradas para este producto.</td>
+            </tr>
+            <tr v-else v-for="d in detalle" :key="d.id">
+              <td>{{ d.fecha }}</td>
+              <td>{{ d.proveedor || '—' }}</td>
+              <td>{{ d.lote || '—' }}</td>
+              <td>{{ formatNum(d.kg) }}</td>
+              <td>{{ formatNum(d.unidades) }}</td>
+              <td>$ {{ formatMoney(d.costo) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+        <button class="btn btn--outline btn--sm" @click="cerrarModal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import axios from '@/services/axios';
+import { ref, computed, onMounted } from 'vue';
+
+/* ===== ENDPOINTS (ajústalos a tus rutas reales) ===== */
+const ENDPOINTS = {
+  productos: '/producto/',
+  entradaUnitaria: '/entradaunitaria/',                          // detalle (tiene producto y entrada)
+  entradas: '/entrada/',                                         // para obtener proveedor por entrada
+  proveedores: '/proveedor/',                                    // catálogo de proveedores
+};
+
+/* ===== Mappers para alinear con tus serializers ===== */
+function mapProducto(apiObj) {
+  return {
+    id: apiObj.id ?? apiObj.id_producto ?? apiObj.pk,
+    nombre: apiObj.nombre ?? '',
+    rubro: apiObj.rubro ?? '',
+    presentacion: apiObj.presentacion ?? '',
+  };
+}
+
+function mapEntradaUnitaria(apiObj) {
+  return {
+    id: apiObj.id ?? apiObj.id_entrada_unitaria ?? apiObj.pk,
+    fecha: (apiObj.fecha || '').toString().slice(0, 10),
+    producto: apiObj.producto ?? apiObj.producto_id ?? apiObj.id_producto,
+    entrada: apiObj.entrada ?? apiObj.entrada_id ?? apiObj.id_entrada,
+    cantidad_kg: Number(apiObj.cantidad_kg ?? apiObj.kg ?? 0),
+    unidades: Number(apiObj.unidades ?? apiObj.cantidad ?? 0),
+    costo: Number(apiObj.costo ?? 0),
+    lote: apiObj.lote ?? '',
+    acuicola: apiObj.acuicola ?? apiObj.acuicola_id ?? null,
+  };
+}
+
+function mapEntrada(apiObj) {
+  return {
+    id: apiObj.id ?? apiObj.id_entrada ?? apiObj.pk,
+    proveedor: apiObj.proveedor ?? apiObj.proveedor_id ?? null,
+  };
+}
+
+function mapProveedor(apiObj) {
+  return {
+    id: apiObj.id ?? apiObj.id_proveedor ?? apiObj.pk,
+    nombre: apiObj.nombre ?? apiObj.razon_social ?? '',
+  };
+}
+
+export default {
+  name: 'Inventario',
+  setup() {
+    const filtro = ref('');
+    const loading = ref(false);
+
+    const inventario = ref([]);  // [{id, nombre, rubro, cantidad, costoAcumulado}]
+    const productosById = ref({});
+    const unitByProducto = ref({}); // productoId -> [entradaunitaria]
+
+    // modal
+    const showModal = ref(false);
+    const activo = ref(null);
+    const detalle = ref([]);
+    const loadingDetalle = ref(false);
+
+    // paginación
+    const page = ref(1);
+    const pageSize = ref(10);
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const acuicolaId = user?.acuicola ?? null;
+
+    const filtrados = computed(() => {
+      const q = filtro.value.trim().toLowerCase();
+      if (!q) return inventario.value;
+      return inventario.value.filter((p) =>
+        [p.id, p.nombre, p.rubro]
+          .map((v) => String(v ?? '').toLowerCase())
+          .some((s) => s.includes(q))
+      );
+    });
+
+    const startIdx = computed(() => (page.value - 1) * pageSize.value);
+    const endIdx = computed(() =>
+      Math.min(startIdx.value + pageSize.value, filtrados.value.length)
+    );
+    const paginated = computed(() =>
+      filtrados.value.slice(startIdx.value, endIdx.value)
+    );
+
+    function formatNum(n) {
+      const x = Number(n || 0);
+      return Number.isFinite(x) ? x.toLocaleString() : '0';
+    }
+    function formatMoney(n) {
+      const x = Number(n || 0);
+      return Number.isFinite(x) ? x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+    }
+
+    async function cargarInventario() {
+      loading.value = true;
+      try {
+        // 1) productos, entradas unitarias, entradas y proveedores
+        const [prodRes, euRes, entRes, provRes] = await Promise.all([
+          axios.get(ENDPOINTS.productos),
+          axios.get(ENDPOINTS.entradaUnitaria),
+          axios.get(ENDPOINTS.entradas),
+          axios.get(ENDPOINTS.proveedores),
+        ]);
+
+        const productos = (Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data.results || [])).map(mapProducto);
+        const unitarias = (Array.isArray(euRes.data) ? euRes.data : (euRes.data.results || [])).map(mapEntradaUnitaria);
+        const entradas = (Array.isArray(entRes.data) ? entRes.data : (entRes.data.results || [])).map(mapEntrada);
+        const proveedores = (Array.isArray(provRes.data) ? provRes.data : (provRes.data.results || [])).map(mapProveedor);
+
+        // Diccionarios
+        productosById.value = Object.fromEntries(productos.map(p => [p.id, p]));
+        const entradaToProveedor = Object.fromEntries(entradas.map(e => [e.id, e.proveedor]));
+        const proveedorToNombre = Object.fromEntries(proveedores.map(p => [p.id, p.nombre]));
+
+        // 2) filtra por acuícola si viene en la unidad
+        const unitariasFiltradas = unitarias.filter(u => (acuicolaId == null) || (u.acuicola == null) || (u.acuicola === acuicolaId));
+
+        // 3) agrupa por producto
+        const acc = {};
+        const bucket = {};
+        for (const u of unitariasFiltradas) {
+          if (!u.producto) continue;
+          if (!acc[u.producto]) acc[u.producto] = { cantidad: 0, costo: 0 };
+          if (!bucket[u.producto]) bucket[u.producto] = [];
+          acc[u.producto].cantidad += Number.isFinite(u.unidades) ? u.unidades : 0;
+          acc[u.producto].costo += Number.isFinite(u.costo) ? u.costo : 0;
+
+          // guarda fila detallada (con proveedor resuelto)
+          bucket[u.producto].push({
+            id: u.id,
+            fecha: u.fecha,
+            proveedor: proveedorToNombre[entradaToProveedor[u.entrada]] || '',
+            lote: u.lote,
+            kg: u.cantidad_kg,
+            unidades: u.unidades,
+            costo: u.costo,
           });
         }
-      },
-    },
-    created() {
-      this.generarProductos();
-    },
-  };
-  </script>
-  
-  <style scoped>
-  .registro-siembra {
-    font-family: Arial, sans-serif;
-    max-width: auto;
-    margin: 0 auto;
-    padding: 20px;
-    background: #f9f9f9;
-    border: 1px solid #ccc;
-    border-radius: 10px;
-  }
-  
-  h1 {
-    text-align: center;
-    color: #333;
-  }
-  
-  .form-group {
-    margin-bottom: 15px;
-  }
-  
-  input {
-    width: 100%;
-    padding: 8px;
-    box-sizing: border-box;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-  }
-  
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-  }
-  /* Ajustar el cuadro de productos */
-.product-table {
-  width: 100%; /* Ajustar al ancho del contenedor */
-  border-collapse: collapse;
-}
 
-.product-table th,
-.product-table td {
-  padding: 10px;
-  text-align: center;
-  border: 1px solid #ccc;
-}
+        unitByProducto.value = bucket;
 
-.product-table th {
-  background-color: #f2f2f2;
-}
+        // 4) arma la tabla final (solo productos con movimiento)
+        inventario.value = Object.keys(acc).map(pid => {
+          const p = productosById.value[pid] || { id: pid, nombre: '', rubro: '' };
+          return {
+            id: p.id,
+            nombre: p.nombre,
+            rubro: p.rubro,
+            cantidad: acc[pid].cantidad,
+            costoAcumulado: acc[pid].costo,
+          };
+        }).sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
+      } catch (e) {
+        console.error('Error al cargar inventario:', e);
+        inventario.value = [];
+      } finally {
+        loading.value = false;
+      }
+    }
 
-.table-container {
-  overflow-x: auto; /* Hacer desplazable horizontalmente si es necesario */
-  max-width: 100%; /* Limitar al ancho del contenedor */
-}
-  th, td {
-    border: 1px solid #ccc;
-    padding: 8px;
-    text-align: center;
-  }
-  
-  th {
-    background-color: #f2f2f2;
-  }
-  
-  button {
-    background-color: #28a745;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    font-size: 14px;
-    cursor: pointer;
-    border-radius: 5px;
-  }
-  
-  button:hover {
-    background-color: #218838;
-  }
-  
-  /* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
+    function verDetalles(item) {
+      activo.value = item;
+      detalle.value = unitByProducto.value[item.id] || [];
+      showModal.value = true;
+    }
 
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  max-width: auto;
-  width: 90%;
-  max-height: 80vh; /* Limitar la altura del modal */
-  overflow-y: auto; /* Hacer que el contenido sea desplazable */
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
+    function cerrarModal() {
+      showModal.value = false;
+      activo.value = null;
+      detalle.value = [];
+    }
 
-.modal-content h2 {
-  margin-top: 0;
-}
+    onMounted(cargarInventario);
 
-.modal-content table {
-  width: 100%;
-  border-collapse: collapse;
-}
+    return {
+      // estado
+      filtro, inventario, loading,
+      showModal, activo, detalle, loadingDetalle,
+      // paginación y filtrado
+      filtrados, paginated, startIdx, endIdx, page, pageSize,
+      // acciones
+      verDetalles, cerrarModal,
+      // utils
+      formatNum, formatMoney,
+    };
+  },
+};
+</script>
 
-.modal-content th,
-.modal-content td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: center;
-}
-
-.modal-content th {
-  background-color: #f2f2f2;
-}
-
-.modal-content button {
-  margin-top: 10px;
-}
-  </style>
-  
+<style scoped>
+/* Modal: reutiliza .overlay global; solo le damos ancho a la card */
+.modal-card { max-width: 1100px; width: 100%; }
+@media (max-width: 768px) { .modal-card { max-width: 95vw; } }
+</style>
