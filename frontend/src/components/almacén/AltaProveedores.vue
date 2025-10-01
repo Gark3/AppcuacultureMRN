@@ -33,47 +33,49 @@ import axios from "axios";
 export default {
   name: "RegistroProveedor",
   data() {
-    const userData = JSON.parse(localStorage.getItem("user"));
+    const safeParse = (s) => { try { return JSON.parse(s || "{}"); } catch { return {}; } };
+    const userData = safeParse(localStorage.getItem("user"));
 
     return {
+      userData, // <--- ahora es parte del estado y accesible como this.userData
       proveedor: {
-        fecha: this.obtenerFechaActual(), // si tu serializer la requiere
+        fecha: new Date().toISOString().split("T")[0],
         estado: 1,
         nombre: "",
         correo: "",
         telefono: "",
         descripcion: "",
-        // Ojo: tu backend dice "acuicola" y "usuario", no "acuicola_id"/"usuario_id"
-        acuicola: userData ? userData.acuicola : null,
-        usuario: userData ? userData.usuario_id : null,
+        // si tu API espera IDs numéricos, asegúrate de castearlos
+        acuicola: userData?.acuicola ?? null,
+        usuario:  userData?.usuario_id ?? null,
       },
+      loading: false,
     };
   },
   methods: {
     obtenerFechaActual() {
-      const hoy = new Date();
-      return hoy.toISOString().split("T")[0];
+      return new Date().toISOString().split("T")[0];
     },
     async registrarProveedor() {
       try {
-        console.log("Proveedor a registrar:", this.proveedor);
-
-        // Ajusta la URL y fíjate si tu DRF ocupa '/api/proveedores/' en vez de '/api/proveedor/'
-        const response = await axios.post("/proveedor/", {
+        this.loading = true;
+        // (opcional) casteo a número si tu serializer lo requiere
+        const payload = {
           fecha: this.proveedor.fecha,
           estado: this.proveedor.estado,
           nombre: this.proveedor.nombre,
           correo: this.proveedor.correo,
-          telefono: this.proveedor.telefono,      // Lo mandamos como texto
+          telefono: String(this.proveedor.telefono || ""),
           descripcion: this.proveedor.descripcion,
-          acuicola: this.proveedor.acuicola,      // No 'acuicola_id'
-          usuario: this.proveedor.usuario,        // No 'usuario_id'
-        });
-        
-        console.log("Proveedor guardado en la BD:", response.data);
-        alert("Proveedor registrado con éxito!");
-        
-        // Reset del formulario
+          acuicola: Number(this.proveedor.acuicola) || this.proveedor.acuicola,
+          usuario:  Number(this.proveedor.usuario)  || this.proveedor.usuario,
+        };
+
+        const { data } = await axios.post("/proveedor/", payload);
+        console.log("Proveedor guardado en la BD:", data);
+        alert("¡Proveedor registrado con éxito!");
+
+        // reset usando this.userData (ya disponible)
         this.proveedor = {
           fecha: this.obtenerFechaActual(),
           estado: 1,
@@ -81,20 +83,20 @@ export default {
           correo: "",
           telefono: "",
           descripcion: "",
-          acuicola: userData ? userData.acuicola : null,
-          usuario: userData ? userData.usuario_id : null,
+          acuicola: this.userData?.acuicola ?? null,
+          usuario:  this.userData?.usuario_id ?? null,
         };
       } catch (error) {
         console.error("Error al registrar el proveedor:", error);
-        if (error.response && error.response.data) {
-          console.log("Detalles del error:", error.response.data);
-        }
-        alert("Hubo un error al registrar el proveedor. Verifica la consola.");
+        alert("Hubo un error al registrar el proveedor. Revisa la consola.");
+      } finally {
+        this.loading = false;
       }
     },
   },
 };
 </script>
+
 
 <style scoped>
 .registro-producto {
