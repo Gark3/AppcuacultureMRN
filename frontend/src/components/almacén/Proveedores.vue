@@ -132,8 +132,8 @@ import { ref, computed, onMounted } from 'vue';
 /* ====== ENDPOINTS (ajústalos si tus rutas difieren) ====== */
 const ENDPOINTS = {
   proveedores: '/proveedor/',                                // lista de proveedores
-  entradasPorProveedor: (provId) => `/entrada/?proveedor=${provId}`, // ids de entradas del proveedor
-  entradaUnitariaPorEntrada: (entradaId) => `/entradaunitaria/?entrada=${entradaId}`,
+  entradasPorProveedor: (provId) => `/entrada/?proveedor=${provId}`,         // <--- ajusta si es distinto
+  entradaUnitariaPorEntrada: (entradaId) => `/entradaunitaria/?entrada=${entradaId}`, // <--- ajusta si es distinto
   entradaUnitariaPorLista: (idsCSV) => `/entradaunitaria/?entrada__in=${idsCSV}`, // si tu API soporta __in
   productos: '/producto/',                                   // catálogo para nombre/presentación
 };
@@ -149,8 +149,18 @@ function mapProveedor(apiObj) {
 }
 
 function mapEntrada(apiObj) {
-  return { id: apiObj.id ?? apiObj.id_entrada ?? apiObj.pk };
+  const guessKey = Object.keys(apiObj || {}).find(k => /^id(_entrada)?$/i.test(k));
+  const id =
+    apiObj?.id ??
+    apiObj?.id_entrada ??
+    apiObj?.idEntrada ??
+    apiObj?.identrada ??
+    (guessKey ? apiObj[guessKey] : undefined) ??
+    apiObj?.pk;
+
+  return { id };
 }
+
 
 function mapEntradaUnitaria(apiObj, productosById = {}) {
   const prodId = apiObj.producto ?? apiObj.producto_id ?? apiObj.id_producto;
@@ -225,48 +235,52 @@ export default {
       loadingEntregas.value = true;
 
       try {
-        // 1) Entradas del proveedor
+        // 1) Traer entradas del proveedor
         const { data: entradasRes } = await axios.get(
           ENDPOINTS.entradasPorProveedor(proveedor.id)
         );
         const entradasArr = Array.isArray(entradasRes)
           ? entradasRes
           : (entradasRes.results || []);
-        const entradas = entradasArr.map(mapEntrada);
-        const ids = entradas.map((e) => e.id);
 
-        if (ids.length === 0) { entregas.value = []; return; }
+        // ids robustos
+        const ids = entradasArr.map(mapEntrada).map(e => e.id).filter(id => id != null);
+
+        // Si no hay ids, no consultamos detalle
+        if (ids.length === 0) {
+          entregas.value = [];
+          return;
+        }
 
         // 2) Catálogo de productos (para nombre/presentación)
         const { data: prodsRes } = await axios.get(ENDPOINTS.productos);
-        const prodsArr = Array.isArray(prodsRes)
-          ? prodsRes
-          : (prodsRes.results || []);
+        const prodsArr = Array.isArray(prodsRes) ? prodsRes : (prodsRes.results || []);
         const productosById = {};
         for (const p of prodsArr) {
           const pid = p.id ?? p.id_producto ?? p.pk;
           productosById[pid] = { nombre: p.nombre, presentacion: p.presentacion };
         }
 
-        // 3) Entradas unitarias (detalle): intentar con __in, si falla hacer 1 request por entrada
+        // 3) Traer entradas unitarias una por una (sin __in)
+        const requests = ids.map(id =>
+          axios.get(ENDPOINTS.entradaUnitariaPorEntrada(id))
+        );
+
+        const results = await Promise.allSettled(requests);
+
         let unitArr = [];
-        const idsCSV = ids.join(',');
-        try {
-          const { data: euRes } = await axios.get(
-            ENDPOINTS.entradaUnitariaPorLista(idsCSV)
-          );
-          unitArr = Array.isArray(euRes) ? euRes : (euRes.results || []);
-        } catch {
-          const listas = await Promise.all(
-            ids.map((id) => axios.get(ENDPOINTS.entradaUnitariaPorEntrada(id)))
-          );
-          unitArr = listas.flatMap((r) =>
-            Array.isArray(r.data) ? r.data : (r.data.results || [])
-          );
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            const d = r.value.data;
+            unitArr = unitArr.concat(Array.isArray(d) ? d : (d.results || []));
+          } else {
+            // Ignora 404 individuales para alguna entrada
+            // console.warn('Fallo al traer detalle de una entrada:', r.reason);
+          }
         }
 
         // 4) Mapear a la UI
-        entregas.value = unitArr.map((u) => mapEntradaUnitaria(u, productosById));
+        entregas.value = unitArr.map(u => mapEntradaUnitaria(u, productosById));
       } catch (e) {
         console.error('Error al cargar entregas:', e);
         entregas.value = [];
