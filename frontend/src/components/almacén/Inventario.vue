@@ -127,7 +127,7 @@ import { ref, computed, onMounted } from 'vue';
 /* ===== ENDPOINTS (ajústalos a tus rutas reales) ===== */
 const ENDPOINTS = {
   productos: '/producto/',
-  entradaUnitaria: '/entradaunitaria/',                          // detalle (tiene producto y entrada)
+  entradaUnitaria: '/entrada-unitaria/',                         // detalle (tiene producto y entrada)
   entradas: '/entrada/',                                         // para obtener proveedor por entrada
   proveedores: '/proveedor/',                                    // catálogo de proveedores
 };

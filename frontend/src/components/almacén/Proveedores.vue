@@ -133,8 +133,8 @@ import { ref, computed, onMounted } from 'vue';
 const ENDPOINTS = {
   proveedores: '/proveedor/',                                // lista de proveedores
   entradasPorProveedor: (provId) => `/entrada/?proveedor=${provId}`,         // <--- ajusta si es distinto
-  entradaUnitariaPorEntrada: (entradaId) => `/entradaunitaria/?entrada=${entradaId}`, // <--- ajusta si es distinto
-  entradaUnitariaPorLista: (idsCSV) => `/entradaunitaria/?entrada__in=${idsCSV}`, // si tu API soporta __in
+  entradaUnitariaPorEntrada: (entradaId) => `/entrada-unitaria/?entrada=${entradaId}`, // <--- ajusta si es distinto
+  entradaUnitariaPorLista: (idsCSV) => `/entrada-unitaria/?entrada__in=${idsCSV}`, // si tu API soporta __in
   productos: '/producto/',                                   // catálogo para nombre/presentación
 };
 
