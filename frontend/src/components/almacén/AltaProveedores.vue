@@ -29,72 +29,77 @@
 
 <script>
 import axios from "axios";
+import { ref } from "vue";
 
 export default {
   name: "RegistroProveedor",
-  data() {
-    // guarda userData en el estado del componente
-    let parsed = {};
-    try { parsed = JSON.parse(localStorage.getItem("user") || "{}"); } catch {}
-    return {
-      userData: parsed, // <-- accesible como this.userData
-      proveedor: {
-        fecha: new Date().toISOString().split("T")[0],
-        estado: 1,
-        nombre: "",
-        correo: "",
-        telefono: "",
-        descripcion: "",
-        acuicola: parsed?.acuicola ?? null,     // ids que tu API espera
-        usuario:  parsed?.usuario_id ?? null,
-      },
-      loading: false,
-    };
-  },
-  methods: {
-    obtenerFechaActual() {
-      return new Date().toISOString().split("T")[0];
-    },
-    async registrarProveedor() {
-      try {
-        this.loading = true;
+  setup() {
+    // Igual que en Alta material: capturamos userData aquí
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
 
+    const proveedor = ref({
+      estado: 1,
+      nombre: "",
+      correo: "",
+      telefono: "",        // mejor como string para evitar problemas de parseo
+      descripcion: "",
+      fecha: obtenerFechaActual(), // opcional si el backend la autogenera
+      // Relación con usuario y acuícola (IDs)
+      usuario: userData?.usuario_id ?? null,
+      acuicola: userData?.acuicola ?? null,
+    });
+
+    function obtenerFechaActual() {
+      const hoy = new Date();
+      return hoy.toISOString().split("T")[0]; // YYYY-MM-DD
+    }
+
+    async function registrarProveedor() {
+      try {
+        // payload limpio
         const payload = {
-          fecha: this.proveedor.fecha,
-          estado: this.proveedor.estado,
-          nombre: this.proveedor.nombre,
-          correo: this.proveedor.correo,
-          telefono: String(this.proveedor.telefono || ""),
-          descripcion: this.proveedor.descripcion,
-          acuicola: Number(this.proveedor.acuicola) || this.proveedor.acuicola,
-          usuario:  Number(this.proveedor.usuario)  || this.proveedor.usuario,
+          estado: proveedor.value.estado,
+          nombre: proveedor.value.nombre,
+          correo: proveedor.value.correo,
+          telefono: String(proveedor.value.telefono || ""),
+          descripcion: proveedor.value.descripcion,
+          // Si tu API requiere la fecha, envíala; si no, comenta esta línea:
+          // fecha: proveedor.value.fecha,
+          usuario: proveedor.value.usuario,   // ID
+          acuicola: proveedor.value.acuicola, // ID
         };
 
+        console.log("Proveedor a registrar:", proveedor.value);
         const { data } = await axios.post("/proveedor/", payload);
         console.log("Proveedor guardado en la BD:", data);
         alert("¡Proveedor registrado con éxito!");
 
-        // >>> usar this.userData, NO 'userData'
-        this.proveedor = {
-          fecha: this.obtenerFechaActual(),
+        // Reset EXACTAMENTE como haces en Alta material:
+        proveedor.value = {
           estado: 1,
           nombre: "",
           correo: "",
           telefono: "",
           descripcion: "",
-          acuicola: this.userData?.acuicola ?? null,
-          usuario:  this.userData?.usuario_id ?? null,
+          fecha: obtenerFechaActual(),
+          usuario: userData?.usuario_id ?? null,
+          acuicola: userData?.acuicola ?? null,
         };
       } catch (error) {
         console.error("Error al registrar el proveedor:", error);
         alert("Hubo un error al registrar el proveedor. Revisa la consola.");
-      } finally {
-        this.loading = false;
       }
-    },
+    }
+
+    return {
+      proveedor,
+      registrarProveedor,
+      obtenerFechaActual,
+    };
   },
 };
 </script>
+
 
 
 <style scoped>
