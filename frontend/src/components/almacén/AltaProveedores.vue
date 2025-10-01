@@ -33,11 +33,11 @@ import axios from "axios";
 export default {
   name: "RegistroProveedor",
   data() {
-    const safeParse = (s) => { try { return JSON.parse(s || "{}"); } catch { return {}; } };
-    const userData = safeParse(localStorage.getItem("user"));
-
+    // guarda userData en el estado del componente
+    let parsed = {};
+    try { parsed = JSON.parse(localStorage.getItem("user") || "{}"); } catch {}
     return {
-      userData, // <--- ahora es parte del estado y accesible como this.userData
+      userData: parsed, // <-- accesible como this.userData
       proveedor: {
         fecha: new Date().toISOString().split("T")[0],
         estado: 1,
@@ -45,9 +45,8 @@ export default {
         correo: "",
         telefono: "",
         descripcion: "",
-        // si tu API espera IDs numéricos, asegúrate de castearlos
-        acuicola: userData?.acuicola ?? null,
-        usuario:  userData?.usuario_id ?? null,
+        acuicola: parsed?.acuicola ?? null,     // ids que tu API espera
+        usuario:  parsed?.usuario_id ?? null,
       },
       loading: false,
     };
@@ -59,7 +58,7 @@ export default {
     async registrarProveedor() {
       try {
         this.loading = true;
-        // (opcional) casteo a número si tu serializer lo requiere
+
         const payload = {
           fecha: this.proveedor.fecha,
           estado: this.proveedor.estado,
@@ -75,7 +74,7 @@ export default {
         console.log("Proveedor guardado en la BD:", data);
         alert("¡Proveedor registrado con éxito!");
 
-        // reset usando this.userData (ya disponible)
+        // >>> usar this.userData, NO 'userData'
         this.proveedor = {
           fecha: this.obtenerFechaActual(),
           estado: 1,
