@@ -124,15 +124,21 @@
 import axios from '@/services/axios';
 import { ref, computed, onMounted } from 'vue';
 
-/* ===== ENDPOINTS (ajústalos a tus rutas reales) ===== */
+/* ===== ENDPOINTS (ajustados a tus rutas) ===== */
 const ENDPOINTS = {
   productos: '/producto/',
-  entradaUnitaria: '/entrada-unitaria/',                         // detalle (tiene producto y entrada)
-  entradas: '/entrada/',                                         // para obtener proveedor por entrada
-  proveedores: '/proveedor/',                                    // catálogo de proveedores
+  entradas: '/entrada/',
+  proveedores: '/proveedor/',
+  entradaUnitaria: '/entrada-unitaria/',   // <- esta es tu ruta real
 };
 
-/* ===== Mappers para alinear con tus serializers ===== */
+/* ===== Helpers ===== */
+const toNum = (v) =>
+  v === null || v === undefined || v === '' || Number.isNaN(Number(v))
+    ? null
+    : Number(v);
+
+/* ===== Mappers robustos ===== */
 function mapProducto(apiObj) {
   return {
     id: apiObj.id ?? apiObj.id_producto ?? apiObj.pk,
@@ -146,27 +152,40 @@ function mapEntradaUnitaria(apiObj) {
   return {
     id: apiObj.id ?? apiObj.id_entrada_unitaria ?? apiObj.pk,
     fecha: (apiObj.fecha || '').toString().slice(0, 10),
-    producto: apiObj.producto ?? apiObj.producto_id ?? apiObj.id_producto,
-    entrada: apiObj.entrada ?? apiObj.entrada_id ?? apiObj.id_entrada,
+    producto: toNum(apiObj.producto ?? apiObj.producto_id ?? apiObj.id_producto),
+    entrada:  toNum(apiObj.entrada  ?? apiObj.entrada_id  ?? apiObj.id_entrada),
     cantidad_kg: Number(apiObj.cantidad_kg ?? apiObj.kg ?? 0),
     unidades: Number(apiObj.unidades ?? apiObj.cantidad ?? 0),
     costo: Number(apiObj.costo ?? 0),
     lote: apiObj.lote ?? '',
-    acuicola: apiObj.acuicola ?? apiObj.acuicola_id ?? null,
+    acuicola: toNum(apiObj.acuicola ?? apiObj.acuicola_id),
   };
 }
 
 function mapEntrada(apiObj) {
-  return {
-    id: apiObj.id ?? apiObj.id_entrada ?? apiObj.pk,
-    proveedor: apiObj.proveedor ?? apiObj.proveedor_id ?? null,
-  };
+  const id =
+    apiObj?.id ??
+    apiObj?.id_entrada ??
+    apiObj?.pk ??
+    apiObj?.idEntrada ??
+    apiObj?.identrada;
+
+  const proveedorId =
+    apiObj?.proveedor ??
+    apiObj?.proveedor_id ??
+    apiObj?.id_proveedor ??
+    apiObj?.proveedorId ??
+    (typeof apiObj?.proveedor === 'object' ? apiObj?.proveedor?.id : null);
+
+  return { id: toNum(id), proveedor: toNum(proveedorId) };
 }
 
 function mapProveedor(apiObj) {
+  const id =
+    apiObj.id ?? apiObj.id_proveedor ?? apiObj.pk ?? apiObj.proveedor_id;
   return {
-    id: apiObj.id ?? apiObj.id_proveedor ?? apiObj.pk,
-    nombre: apiObj.nombre ?? apiObj.razon_social ?? '',
+    id: toNum(id),
+    nombre: apiObj.nombre ?? apiObj.razon_social ?? apiObj.proveedor_nombre ?? '',
   };
 }
 
@@ -176,9 +195,9 @@ export default {
     const filtro = ref('');
     const loading = ref(false);
 
-    const inventario = ref([]);  // [{id, nombre, rubro, cantidad, costoAcumulado}]
-    const productosById = ref({});
-    const unitByProducto = ref({}); // productoId -> [entradaunitaria]
+    const inventario = ref([]);     // [{id, nombre, rubro, cantidad, costoAcumulado}]
+    const productosById = ref({});  // id -> producto
+    const unitByProducto = ref({}); // idProducto -> [detalle para modal]
 
     // modal
     const showModal = ref(false);
@@ -217,48 +236,62 @@ export default {
     }
     function formatMoney(n) {
       const x = Number(n || 0);
-      return Number.isFinite(x) ? x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+      return Number.isFinite(x)
+        ? x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '0.00';
     }
 
     async function cargarInventario() {
       loading.value = true;
       try {
-        // 1) productos, entradas unitarias, entradas y proveedores
-        const [prodRes, euRes, entRes, provRes] = await Promise.all([
-          axios.get(ENDPOINTS.productos),
-          axios.get(ENDPOINTS.entradaUnitaria),
-          axios.get(ENDPOINTS.entradas),
-          axios.get(ENDPOINTS.proveedores),
-        ]);
+        // Traemos datasets secuencialmente (menos picos)
+        const prodRes = await axios.get(ENDPOINTS.productos);
+        const euRes   = await axios.get(ENDPOINTS.entradaUnitaria);
+        const entRes  = await axios.get(ENDPOINTS.entradas);
+        const provRes = await axios.get(ENDPOINTS.proveedores);
 
-        const productos = (Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data.results || [])).map(mapProducto);
-        const unitarias = (Array.isArray(euRes.data) ? euRes.data : (euRes.data.results || [])).map(mapEntradaUnitaria);
-        const entradas = (Array.isArray(entRes.data) ? entRes.data : (entRes.data.results || [])).map(mapEntrada);
+        const productos   = (Array.isArray(prodRes.data) ? prodRes.data : (prodRes.data.results || [])).map(mapProducto);
+        const unitarias   = (Array.isArray(euRes.data)   ? euRes.data   : (euRes.data.results   || [])).map(mapEntradaUnitaria);
+        const entradas    = (Array.isArray(entRes.data)  ? entRes.data  : (entRes.data.results  || [])).map(mapEntrada);
         const proveedores = (Array.isArray(provRes.data) ? provRes.data : (provRes.data.results || [])).map(mapProveedor);
 
         // Diccionarios
-        productosById.value = Object.fromEntries(productos.map(p => [p.id, p]));
-        const entradaToProveedor = Object.fromEntries(entradas.map(e => [e.id, e.proveedor]));
-        const proveedorToNombre = Object.fromEntries(proveedores.map(p => [p.id, p.nombre]));
+        productosById.value = Object.fromEntries(productos.map(p => [toNum(p.id), p]));
 
-        // 2) filtra por acuícola si viene en la unidad
-        const unitariasFiltradas = unitarias.filter(u => (acuicolaId == null) || (u.acuicola == null) || (u.acuicola === acuicolaId));
+        const entradaToProveedor = {};
+        for (const e of entradas) {
+          if (e.id != null) entradaToProveedor[e.id] = e.proveedor ?? null;
+        }
 
-        // 3) agrupa por producto
-        const acc = {};
+        const proveedorToNombre = {};
+        for (const p of proveedores) {
+          if (p.id != null) proveedorToNombre[p.id] = p.nombre;
+        }
+
+        // Filtra por acuícola si viene seteado en la unitaria
+        const unitariasFiltradas = unitarias.filter(u =>
+          (acuicolaId == null) || (u.acuicola == null) || (u.acuicola === acuicolaId)
+        );
+
+        // Agrupación por producto
+        const totales = {};
         const bucket = {};
         for (const u of unitariasFiltradas) {
           if (!u.producto) continue;
-          if (!acc[u.producto]) acc[u.producto] = { cantidad: 0, costo: 0 };
-          if (!bucket[u.producto]) bucket[u.producto] = [];
-          acc[u.producto].cantidad += Number.isFinite(u.unidades) ? u.unidades : 0;
-          acc[u.producto].costo += Number.isFinite(u.costo) ? u.costo : 0;
 
-          // guarda fila detallada (con proveedor resuelto)
+          if (!totales[u.producto]) totales[u.producto] = { cantidad: 0, costo: 0 };
+          if (!bucket[u.producto]) bucket[u.producto] = [];
+
+          totales[u.producto].cantidad += Number.isFinite(u.unidades) ? u.unidades : 0;
+          totales[u.producto].costo    += Number.isFinite(u.costo)    ? u.costo    : 0;
+
+          const provId = entradaToProveedor[u.entrada] ?? null;
+          const provNombre = (provId != null ? proveedorToNombre[provId] : null) ?? '';
+
           bucket[u.producto].push({
             id: u.id,
             fecha: u.fecha,
-            proveedor: proveedorToNombre[entradaToProveedor[u.entrada]] || '',
+            proveedor: provNombre,
             lote: u.lote,
             kg: u.cantidad_kg,
             unidades: u.unidades,
@@ -268,15 +301,15 @@ export default {
 
         unitByProducto.value = bucket;
 
-        // 4) arma la tabla final (solo productos con movimiento)
-        inventario.value = Object.keys(acc).map(pid => {
-          const p = productosById.value[pid] || { id: pid, nombre: '', rubro: '' };
+        // Construye la tabla final
+        inventario.value = Object.keys(totales).map(pid => {
+          const p = productosById.value[toNum(pid)] || { id: toNum(pid), nombre: '', rubro: '' };
           return {
             id: p.id,
             nombre: p.nombre,
             rubro: p.rubro,
-            cantidad: acc[pid].cantidad,
-            costoAcumulado: acc[pid].costo,
+            cantidad: totales[pid].cantidad,
+            costoAcumulado: totales[pid].costo,
           };
         }).sort((a,b) => String(a.nombre).localeCompare(String(b.nombre)));
       } catch (e) {
@@ -302,14 +335,10 @@ export default {
     onMounted(cargarInventario);
 
     return {
-      // estado
       filtro, inventario, loading,
       showModal, activo, detalle, loadingDetalle,
-      // paginación y filtrado
-      filtrados, paginated, startIdx, endIdx, page, pageSize,
-      // acciones
+      page, pageSize, filtrados, paginated, startIdx, endIdx,
       verDetalles, cerrarModal,
-      // utils
       formatNum, formatMoney,
     };
   },
@@ -317,7 +346,7 @@ export default {
 </script>
 
 <style scoped>
-/* Modal: reutiliza .overlay global; solo le damos ancho a la card */
+/* Modal: usa tu .overlay global; solo ancho de la card */
 .modal-card { max-width: 1100px; width: 100%; }
 @media (max-width: 768px) { .modal-card { max-width: 95vw; } }
 </style>
