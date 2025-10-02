@@ -421,7 +421,7 @@ export default {
       this.loggedIn = false;
       this.perfil = null;
       this.permisos = { ...DEFAULT_PERMS };
-      this.$router.push("/login");
+      this.$router.push("/");
     },
   },
 
