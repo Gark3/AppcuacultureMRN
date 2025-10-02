@@ -15,7 +15,6 @@ import VentanaCuarentena from '@/components/conector/VentanaCuarentena.vue';
 import VentanaDieta from '@/components/conector/VentanaDieta.vue';
 import VentanaEstanques from '@/components/conector/VentanaEstanques.vue';
 import VentanaFichaTecnica from '@/components/conector/VentanaFichaTecnica.vue';
-import VentanaProyeccion from '@/components/conector/VentanaProyeccion.vue';
 import VentanaTratamientos from '@/components/conector/VentanaTratamientos.vue';
 
 import AgregarEstanque from '@/components/producción/AgregarEstanque.vue';
@@ -104,10 +103,6 @@ const routes = [
   {
     path: '/producción/ficha-técnica',
     component: VentanaFichaTecnica
-  },
-  {
-    path: '/producción/Proyeccion',
-    component: VentanaProyeccion
   },
   {
     path: '/producción/tratamientos',
