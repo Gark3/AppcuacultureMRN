@@ -125,7 +125,7 @@ const routes = [
     component: Crecimiento, props: true  },
   { path: '/producción/cosecha/registro/:id', 
     component: Cosecha, props: true  },
-  { path: '/producción/Proyeccion/registro/:id', 
+  { path: '/producción/proyeccion/', 
     component: Proyeccion, props: true  },
   { path: '/producción/adición/registro/:id', 
     component: Adicion, props: true  },

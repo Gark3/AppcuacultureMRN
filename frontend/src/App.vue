@@ -38,9 +38,11 @@
           <ul class="side-list" v-if="!loadingPerms">
             <!-- Submenú: Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
-              <li v-if="has('produccion_agregar_estanque')">
-                <router-link to="/producción/Proyeccion" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
+              <!-- NUEVO: Proyección hereda del permiso de 'agregar estanque' mediante alias -->
+              <li v-if="has('produccion_proyeccion')">
+                <router-link to="/produccion/proyeccion" class="side-menu-link" @click="onNavClick">Proyección</router-link>
               </li>
+
               <li v-if="has('produccion_agregar_estanque')">
                 <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
               </li>
@@ -258,6 +260,12 @@ export default {
       permisos: { ...DEFAULT_PERMS },
       loadingPerms: false,
 
+      // Alias de permisos (front) → sin tocar el back
+      // 'produccion_proyeccion' usará el mismo flag que 'produccion_agregar_estanque'
+      permAliases: {
+        produccion_proyeccion: "produccion_agregar_estanque",
+      },
+
       // Base de la API (configurable por .env)
       apiBase: import.meta.env.VITE_API_URL || "/api",
     };
@@ -314,9 +322,11 @@ export default {
       return Boolean(this.permisos && this.permisos[key]);
     },
     has(key) {
-      const parent = this.parentFor(key);
+      // alias → canon (si existe)
+      const canon = this.permAliases?.[key] || key;
+      const parent = this.parentFor(canon);
       if (parent && !this.can(parent)) return false;
-      return Boolean(this.permisos && this.permisos[key]);
+      return Boolean(this.permisos && this.permisos[canon]);
     },
     parentFor(subKey) {
       if (subKey.startsWith("produccion_")) return "menu_produccion";
@@ -373,17 +383,6 @@ export default {
       for (const k of Object.keys(DEFAULT_PERMS)) cleaned[k] = toBool(obj?.[k]);
       return cleaned;
     },
-    async firstSuccessfulGET(urls, normalizer) {
-      let lastErr = null;
-      for (const url of urls) {
-        try {
-          const { data } = await axios.get(url);
-          return normalizer ? normalizer(data) : data;
-        } catch (e) { lastErr = e; }
-      }
-      if (lastErr) throw lastErr;
-      return null;
-    },
 
     // === Boot ===
     async bootstrapPerfilYPermisos() {
@@ -417,7 +416,6 @@ export default {
     logout() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) localStorage.removeItem(k);
-      // borrar cookie no-HttpOnly si existiera
       document.cookie = "accessToken=; Max-Age=0; path=/;";
       document.cookie = "token=; Max-Age=0; path=/;";
       delete axios.defaults.headers.common["Authorization"];
