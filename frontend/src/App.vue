@@ -29,10 +29,7 @@
 
       <div class="main-container">
         <!-- Menú lateral -->
-        <aside
-          class="side-menu"
-          :class="{ 'open': isMenuOpen }"
-        >
+        <aside class="side-menu" :class="{ 'open': isMenuOpen }">
           <div class="side-header">
             <span class="side-title">{{ currentMenu || 'Menú' }}</span>
             <button class="side-close" @click="closeMenu" aria-label="Cerrar menú">✕</button>
@@ -149,6 +146,13 @@
               </li>
             </template>
 
+            <!-- Cuenta -->
+            <template v-else-if="currentMenu === 'Cuenta'">
+              <li>
+                <button class="side-menu-link" @click="logout">Cerrar sesión</button>
+              </li>
+            </template>
+
             <!-- Submenú vacío -->
             <template v-else>
               <li class="side-empty">Selecciona una sección arriba</li>
@@ -235,7 +239,7 @@ export default {
       menuItems: ["Producción", "Reporte", "Almacén", "Estadístico", "Contaduría", "Cuenta"],
       isMenuOpen: false,
       viewportWidth: window.innerWidth,
-      overlayBreakpoint: 1024, // < 1024 => overlay (móvil/tablet)
+      overlayBreakpoint: 1024,
       // Rutas raíz sin acentos
       menuRouteMap: {
         "Producción": "/produccion",
@@ -246,12 +250,13 @@ export default {
         "Cuenta": "/cuenta",
       },
 
-      // Nuevo: perfil y permisos
+      // Perfil y permisos
       perfil: null,
       permisos: { ...DEFAULT_PERMS },
       loadingPerms: false,
-      // Si tu API usa un prefijo diferente, cámbialo aquí:
-      apiBase: "/api",
+
+      // Base de la API (configurable por .env)
+      apiBase: import.meta.env.VITE_API_URL || "/api",
     };
   },
   computed: {
@@ -278,25 +283,34 @@ export default {
     },
   },
   methods: {
-    // === Autenticación / token ===
-    onLogin() {
-      this.loggedIn = true;
-      this.configurarToken();
-      this.bootstrapPerfilYPermisos();
+    // === Token helpers ===
+    getStoredAccessToken() {
+      const keys = ["accessToken", "access", "token", "jwt", "authToken"];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) return v;
+      }
+      try {
+        const m = document.cookie.match(/(?:^|; )(?:accessToken|access|token|jwt)=([^;]+)/);
+        if (m) return decodeURIComponent(m[1]);
+      } catch (_e) {}
+      return null;
     },
     configurarToken() {
-      const token = localStorage.getItem("accessToken");
-      if (token) axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      else delete axios.defaults.headers.common["Authorization"];
+      const token = this.getStoredAccessToken();
+      if (!token) {
+        delete axios.defaults.headers.common["Authorization"];
+        return;
+      }
+      axios.defaults.headers.common["Authorization"] =
+        token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     },
 
     // === Permisos helpers ===
     can(key) {
-      // Lectura segura de booleanos de menú superior
       return Boolean(this.permisos && this.permisos[key]);
     },
     has(key) {
-      // Submódulo: además de su propio flag, valida que el menú padre esté habilitado.
       const parent = this.parentFor(key);
       if (parent && !this.can(parent)) return false;
       return Boolean(this.permisos && this.permisos[key]);
@@ -313,21 +327,15 @@ export default {
     // === Menús ===
     changeMenu(menuItem) {
       this.currentMenu = menuItem;
-      this.isMenuOpen = true; // abrir always
-
-      // Si el menú no está permitido, corrige
+      this.isMenuOpen = true;
       if (menuItem !== "Cuenta" && !this.visibleMenuItems.includes(menuItem)) {
         this.ensureValidCurrentMenu();
         return;
       }
-
       const route = this.menuRouteMap[menuItem];
-      if (route && this.$route.path !== route) {
-        this.$router.push(route);
-      }
+      if (route && this.$route.path !== route) this.$router.push(route);
     },
     ensureValidCurrentMenu() {
-      // Busca el primer menú permitido; si no, "Cuenta"
       const firstAllowed = this.visibleMenuItems.find(m => m !== "Cuenta");
       const target = firstAllowed || "Cuenta";
       if (this.currentMenu !== target) {
@@ -344,76 +352,24 @@ export default {
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
     onResize() {
       this.viewportWidth = window.innerWidth;
-      if (!this.isOverlayMode) this.isMenuOpen = true; // desktop UX
+      if (!this.isOverlayMode) this.isMenuOpen = true;
     },
 
-    // === Carga de perfil y permisos ===
-    async bootstrapPerfilYPermisos() {
-      if (!this.loggedIn) return;
-      this.loadingPerms = true;
-      try {
-        const perfil = await this.fetchPerfilActual();
-        this.perfil = perfil || null;
-
-        const permisos = await this.fetchPermisos(perfil);
-        this.permisos = { ...DEFAULT_PERMS, ...(permisos || {}) };
-
-        // Asegura que el menú actual sea válido según permisos
-        this.ensureValidCurrentMenu();
-      } catch (err) {
-        console.error("Error cargando perfil/permisos:", err);
-        // En caso de error, deja solo "Cuenta"
-        this.permisos = { ...DEFAULT_PERMS };
-        this.currentMenu = "Cuenta";
-        const route = this.menuRouteMap["Cuenta"];
-        if (this.$route.path !== route) this.$router.push(route);
-      } finally {
-        this.loadingPerms = false;
-      }
-    },
-
+    // === API ===
     async fetchPerfilActual() {
-      // Intenta varios endpoints comunes. Ajusta a tu API si ya lo tienes fijo.
-      const candidates = [
-        `${this.apiBase}/perfil/mis-datos/`,
-        `${this.apiBase}/perfil/me/`,
-        `${this.apiBase}/perfil/miperfil/`,
-        `${this.apiBase}/perfil/mi-perfil/`,
-        `${this.apiBase}/perfil/yo/`,
-        `${this.apiBase}/perfil/?me=1`,
-      ];
-      return await this.firstSuccessfulGET(candidates, (data) => {
-        // Normalización: si regresa lista, toma el primero
-        if (Array.isArray(data)) return data[0];
-        return data;
-      });
+      const url = `${this.apiBase}/perfiles/me/`;
+      const { data } = await axios.get(url);
+      return data;
     },
-
-    async fetchPermisos(perfil) {
-      // Puedes ligar por perfil.id o por perfil.tipo_usuario (según tu modelo)
-      const perfilId = perfil?.id || perfil?.id_perfil;
-      const tipoId = perfil?.tipo_usuario || perfil?.tipo_usuario_id;
-
-      const candidates = [
-        `${this.apiBase}/permisos/mis-permisos/`,
-        `${this.apiBase}/permisos/por-perfil/${perfilId}/`,
-        `${this.apiBase}/permisos/por-tipo/${tipoId}/`,
-        `${this.apiBase}/permisos/?perfil=${perfilId}`,
-        `${this.apiBase}/permisos/?tipo_usuario=${tipoId}`,
-      ].filter(Boolean);
-
-      const raw = await this.firstSuccessfulGET(candidates);
-      // Si la API devuelve array, toma el primero; si es objeto, úsalo directo
-      const obj = Array.isArray(raw) ? raw[0] : raw;
-
-      // Devuelve solo llaves conocidas mezcladas con DEFAULT_PERMS
+    async fetchPermisos(_perfil) {
+      const url = `${this.apiBase}/permisos/mis-permisos/`;
+      const obj = (await axios.get(url)).data;
+      const toBool = (v) =>
+        v === true || v === 1 || v === "1" || (typeof v === "string" && v.toLowerCase() === "true");
       const cleaned = {};
-      for (const k of Object.keys(DEFAULT_PERMS)) {
-        cleaned[k] = Boolean(obj?.[k]);
-      }
+      for (const k of Object.keys(DEFAULT_PERMS)) cleaned[k] = toBool(obj?.[k]);
       return cleaned;
     },
-
     async firstSuccessfulGET(urls, normalizer) {
       let lastErr = null;
       for (const url of urls) {
@@ -425,15 +381,54 @@ export default {
       if (lastErr) throw lastErr;
       return null;
     },
+
+    // === Boot ===
+    async bootstrapPerfilYPermisos() {
+      if (!this.loggedIn) return;
+      this.loadingPerms = true;
+      try {
+        const perfil = await this.fetchPerfilActual();
+        this.perfil = perfil || null;
+
+        const permisos = await this.fetchPermisos(perfil);
+        this.permisos = { ...DEFAULT_PERMS, ...(permisos || {}) };
+
+        this.ensureValidCurrentMenu();
+      } catch (err) {
+        console.error("Error cargando perfil/permisos:", err);
+        this.permisos = { ...DEFAULT_PERMS };
+        this.currentMenu = "Cuenta";
+        const route = this.menuRouteMap["Cuenta"];
+        if (this.$route.path !== route) this.$router.push(route);
+      } finally {
+        this.loadingPerms = false;
+      }
+    },
+
+    // === Sesión ===
+    onLogin() {
+      this.loggedIn = true;
+      this.configurarToken();
+      this.bootstrapPerfilYPermisos();
+    },
+    logout() {
+      const keys = ["accessToken", "access", "token", "jwt", "authToken"];
+      for (const k of keys) localStorage.removeItem(k);
+      // borrar cookie no-HttpOnly si existiera
+      document.cookie = "accessToken=; Max-Age=0; path=/;";
+      document.cookie = "token=; Max-Age=0; path=/;";
+      delete axios.defaults.headers.common["Authorization"];
+      this.loggedIn = false;
+      this.perfil = null;
+      this.permisos = { ...DEFAULT_PERMS };
+      this.$router.push("/login");
+    },
   },
 
   created() {
     this.configurarToken();
-    // Estado inicial según viewport
     this.isMenuOpen = window.innerWidth >= this.overlayBreakpoint;
-
-    // Si ya hay token, considéralo logueado (evita pantallazo tras refresh)
-    const token = localStorage.getItem("accessToken");
+    const token = this.getStoredAccessToken();
     if (token) {
       this.loggedIn = true;
       this.bootstrapPerfilYPermisos();
@@ -482,7 +477,11 @@ body {
 .menu-buttons .active { background: #ffc107; color: #1f2937; }
 
 /* Contenedor principal */
-.main-container { position: relative; flex: 1; min-height: 0; }
+.main-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
 
 /* Aside lateral */
 .side-menu {
@@ -517,6 +516,8 @@ body {
 .side-menu-link {
   display: block; color: white; text-decoration: none;
   padding: 10px 12px; border-radius: 6px; transition: background .2s ease;
+  width: 100%; text-align: left;
+  background: transparent; border: none; cursor: pointer; /* para el botón logout */
 }
 .side-menu-link:hover { background: #495057; }
 
