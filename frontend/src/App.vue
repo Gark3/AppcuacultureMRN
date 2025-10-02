@@ -39,6 +39,9 @@
             <!-- Submenú: Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
               <li v-if="has('produccion_agregar_estanque')">
+                <router-link to="/producción/Proyeccion" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
+              </li>
+              <li v-if="has('produccion_agregar_estanque')">
                 <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
               </li>
               <li v-if="has('produccion_siembra')">

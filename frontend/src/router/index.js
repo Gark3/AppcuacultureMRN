@@ -15,7 +15,7 @@ import VentanaCuarentena from '@/components/conector/VentanaCuarentena.vue';
 import VentanaDieta from '@/components/conector/VentanaDieta.vue';
 import VentanaEstanques from '@/components/conector/VentanaEstanques.vue';
 import VentanaFichaTecnica from '@/components/conector/VentanaFichaTecnica.vue';
-import VentanaTraslado from '@/components/conector/VentanaTraslado.vue';
+import VentanaProyeccion from '@/components/conector/VentanaProyeccion.vue';
 import VentanaTratamientos from '@/components/conector/VentanaTratamientos.vue';
 
 import AgregarEstanque from '@/components/producción/AgregarEstanque.vue';
@@ -26,7 +26,7 @@ import Dieta from '@/components/producción/Dieta.vue';
 import FichaTecnica from '@/components/producción/FichaTecnica.vue';
 import Crecimiento from '@/components/producción/Crecimiento.vue';
 import Cosecha from '@/components/producción/Cosecha.vue';
-import Traslado from '@/components/producción/Traslado.vue';
+import Proyeccion from '@/components/producción/Proyeccion.vue';
 import Adicion from '@/components/producción/Adicion.vue';
 import Tratamientos from '@/components/producción/Tratamientos.vue';
 import Cuarentena from '@/components/producción/Cuarentena.vue';
@@ -106,8 +106,8 @@ const routes = [
     component: VentanaFichaTecnica
   },
   {
-    path: '/producción/traslado',
-    component: VentanaTraslado
+    path: '/producción/Proyeccion',
+    component: VentanaProyeccion
   },
   {
     path: '/producción/tratamientos',
@@ -130,8 +130,8 @@ const routes = [
     component: Crecimiento, props: true  },
   { path: '/producción/cosecha/registro/:id', 
     component: Cosecha, props: true  },
-  { path: '/producción/traslado/registro/:id', 
-    component: Traslado, props: true  },
+  { path: '/producción/Proyeccion/registro/:id', 
+    component: Proyeccion, props: true  },
   { path: '/producción/adición/registro/:id', 
     component: Adicion, props: true  },
   { path: '/producción/tratamientos/registro/:id', 
