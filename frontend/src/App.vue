@@ -39,9 +39,9 @@
             <!-- Submenú: Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
               <!-- NUEVO: Proyección hereda del permiso de 'agregar estanque' mediante alias -->
-              <li v-if="has('produccion_proyeccion')">
+              <!--li v-if="has('produccion_proyeccion')">
                 <router-link to="/produccion/proyeccion" class="side-menu-link" @click="onNavClick">Proyección</router-link>
-              </li>
+              </li-->
 
               <li v-if="has('produccion_agregar_estanque')">
                 <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
@@ -68,7 +68,7 @@
                 <router-link to="/producción/tratamientos" class="side-menu-link" @click="onNavClick">Tratamientos</router-link>
               </li>
               <li v-if="has('produccion_cuarentena')">
-                <router-link to="/producción/cuarentena" class="side-menu-link" @click="onNavClick">Cuarentena</router-link>
+                <router-link to="/producción/cuarentena" class="side-menu-link" @click="onNavClick">Proyección</router-link>
               </li>
             </template>
 
