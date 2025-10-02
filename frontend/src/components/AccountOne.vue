@@ -1,7 +1,7 @@
 <template>
     <div>
       <h2>Cuenta - Vista 1</h2>
-      <p>Aquí va el contenido para Cuenta número 1</p>
+      <p></p>
     </div>
   </template>
   

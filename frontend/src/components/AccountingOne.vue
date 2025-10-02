@@ -1,7 +1,7 @@
 <template>
     <div>
       <h2>Contaduría - Vista 1</h2>
-      <p>Aquí va el ASDASDD para Contaduría número 1</p>
+      <p></p>
     </div>
   </template>
   
