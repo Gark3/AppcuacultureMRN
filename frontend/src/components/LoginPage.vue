@@ -1,10 +1,10 @@
 <template>
   <div class="login-container">
     <!-- Video de fondo -->
-    <video autoplay muted @ended="mostrarLogin" class="video-fondo">
+    <!--video autoplay muted @ended="mostrarLogin" class="video-fondo">
       <source src="@/assets/Diseño sin título.mp4" type="video/mp4" />
       Tu navegador no soporta el elemento de video.
-    </video>
+    </video-->
     
     <!-- Formulario de login -->
     <div v-if="loginVisible" class="login-form">
