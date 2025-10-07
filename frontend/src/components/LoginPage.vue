@@ -1,42 +1,64 @@
 <template>
   <div class="login-container">
     <!-- Video de fondo -->
-    <!--video autoplay muted @ended="mostrarLogin" class="video-fondo">
+    <!--
+    <video autoplay muted @ended="mostrarLogin" class="video-fondo">
       <source src="@/assets/Diseño sin título.mp4" type="video/mp4" />
       Tu navegador no soporta el elemento de video.
-    </video-->
-    
-    <!-- Formulario de login -->
-    <div v-if="loginVisible" class="login-form">
-      <h2>Iniciar sesión</h2>
-      <form @submit.prevent="login">
-        <label for="usuario">Usuario:</label>
-        <!-- Se agrega id y name para cumplir con la accesibilidad -->
-        <input
-          type="text"
-          id="usuario"
-          name="usuario"
-          v-model="usuario"
-          required
-        />
-        <label for="password">Contraseña:</label>
-        <!-- Se agrega id y name para cumplir con la accesibilidad -->
-        <input
-          type="password"
-          id="password"
-          name="password"
-          v-model="password"
-          required
-        />
-        <div class="buttons">
-          <button type="submit">Iniciar sesión</button>
-          <a href="#">¿Olvidaste tu contraseña?</a>
-          <a href="#" @click.prevent="irRegistrarUsuario">Registrarse</a>
-        </div>
-        <p v-if="loginFailed" class="error-message">
-          Usuario o contraseña incorrectos.
-        </p>
-      </form>
+    </video>
+    -->
+
+    <!-- Wrapper con logos laterales y formulario -->
+    <div v-if="loginVisible" class="login-wrapper">
+      <!-- Logo IPN (izquierda) -->
+      <img
+        class="side-logo side-logo-left"
+        src="@/assets/ipnlogo.png"
+        alt="Logo del IPN"
+        draggable="false"
+      />
+
+      <!-- Formulario de login -->
+      <div class="login-form">
+        <h2>Iniciar sesión</h2>
+        <form @submit.prevent="login">
+          <label for="usuario">Usuario:</label>
+          <input
+            type="text"
+            id="usuario"
+            name="usuario"
+            v-model="usuario"
+            required
+          />
+
+          <label for="password">Contraseña:</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            v-model="password"
+            required
+          />
+
+          <div class="buttons">
+            <button type="submit">Iniciar sesión</button>
+            <a href="#">¿Olvidaste tu contraseña?</a>
+            <a href="#" @click.prevent="irRegistrarUsuario">Registrarse</a>
+          </div>
+
+          <p v-if="loginFailed" class="error-message">
+            Usuario o contraseña incorrectos.
+          </p>
+        </form>
+      </div>
+
+      <!-- Logo CIIDIR (derecha) -->
+      <img
+        class="side-logo side-logo-right"
+        src="@/assets/ciidirlogo.png"
+        alt="Logo de CIIDIR"
+        draggable="false"
+      />
     </div>
   </div>
 </template>
@@ -49,8 +71,8 @@ export default {
   data() {
     return {
       loginVisible: true,
-      usuario:'', // Valor de prueba, puedes quitarlo o modificarlo
-      password: '', // Valor de prueba, puedes quitarlo o modificarlo
+      usuario: '',
+      password: '',
       loginFailed: false,
     };
   },
@@ -60,16 +82,11 @@ export default {
     },
     async login() {
       try {
-        // Se llama a la función de autenticación
         const response = await apiLogin(this.usuario, this.password);
-        
-        // Se espera un objeto JSON con: access, refresh, usuario_id, nombre, tipo_usuario, acuicola
         localStorage.setItem("accessToken", response.access);
         localStorage.setItem("user", JSON.stringify(response));
-
-        this.$emit('login');   // Notifica al padre (por ejemplo, App.vue)
+        this.$emit('login');
         this.loginFailed = false;
-        // Redirecciona a la ruta principal
         this.$router.push('/');
       } catch (err) {
         this.loginFailed = true;
@@ -77,7 +94,6 @@ export default {
       }
     },
     irRegistrarUsuario() {
-      // Redirige a la ruta de registro
       this.$router.push('/registrarusuario');
     }
   }
@@ -93,24 +109,32 @@ export default {
 
 .video-fondo {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   z-index: -1;
 }
 
-.login-form {
+/* Contenedor que centra todo y pone los logos a los lados */
+.login-wrapper {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 4vw, 48px);
+  padding-inline: clamp(12px, 4vw, 48px);
+}
+
+/* Cuadro de login */
+.login-form {
   background-color: rgba(255, 255, 255, 0.9);
   padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
   z-index: 1;
+  width: min(92vw, 420px);
 }
 
 .login-form h2 {
@@ -121,17 +145,23 @@ export default {
 .login-form form {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 14px;
 }
 
 .login-form label {
-  font-weight: bold;
+  font-weight: 600;
 }
 
 .login-form input {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  padding: 10px 12px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  outline: none;
+}
+
+.login-form input:focus {
+  border-color: #8d2a2a;
+  box-shadow: 0 0 0 3px rgba(141, 42, 42, 0.15);
 }
 
 .buttons {
@@ -145,8 +175,9 @@ export default {
   border: none;
   background-color: #8d2a2a;
   color: white;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: 700;
 }
 
 .login-form button:hover {
@@ -162,7 +193,38 @@ export default {
 }
 
 .error-message {
-  color: red;
+  color: #d11;
   text-align: center;
+  margin-top: 6px;
+}
+
+/* Logos laterales */
+.side-logo {
+  max-height: clamp(64px, 18vh, 140px);
+  width: auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
+}
+
+/* Alineación explícita por si necesitas estilos distintos por lado */
+.side-logo-left { }
+.side-logo-right { }
+
+/* Responsivo: en tablets reduce tamaño; en móviles muy angostos oculta logos */
+@media (max-width: 900px) {
+  .side-logo {
+    max-height: clamp(56px, 14vh, 110px);
+  }
+}
+
+@media (max-width: 640px) {
+  .login-wrapper {
+    gap: 12px;
+  }
+  .side-logo {
+    display: none; /* Oculta en pantallas muy pequeñas para priorizar el formulario */
+  }
 }
 </style>
