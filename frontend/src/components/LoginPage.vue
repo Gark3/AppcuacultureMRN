@@ -48,7 +48,7 @@ export default {
   name: "LoginPage",
   data() {
     return {
-      loginVisible: false,
+      loginVisible: true,
       usuario:'', // Valor de prueba, puedes quitarlo o modificarlo
       password: '', // Valor de prueba, puedes quitarlo o modificarlo
       loginFailed: false,
