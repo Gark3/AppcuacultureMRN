@@ -1,5 +1,5 @@
 <template>
-  <!-- Activa tema granate IPN solo en este subtree (opcional) -->
+  <!-- Tema IPN local (opcional) -->
   <div class="theme-ipn">
     <!-- Rutas de autenticación -->
     <div v-if="isAuthRoute">
@@ -8,8 +8,8 @@
 
     <!-- Layout general (usuario logueado) -->
     <div v-else-if="loggedIn" class="app-shell">
-      <!-- Header superior con estilo del login -->
-      <header class="topbar">
+      <!-- ===== TOPBAR estilo login ===== -->
+      <header class="topbar login-like">
         <div class="brand-group">
           <button
             class="hamburger"
@@ -30,20 +30,21 @@
           <button
             v-for="item in visibleMenuItems"
             :key="item"
-            :class="['nav-link', { active: currentMenu === item }]"
+            :class="['nav-pill', { active: currentMenu === item }]"
             @click="changeMenu(item)"
             :title="`Ir a ${item}`"
           >
-            {{ item }}
+            <span class="pill-ico" aria-hidden="true">{{ icons[item] || '•' }}</span>
+            <span class="pill-text">{{ item }}</span>
           </button>
         </nav>
       </header>
 
       <div class="main-container">
-        <!-- Menú lateral -->
+        <!-- ===== MENÚ LATERAL estilo login (panel claro + sombra + bordes redondos) ===== -->
         <aside
           id="asideMenu"
-          class="side-menu"
+          class="side-menu sheet"
           :class="{ 'open': isMenuOpen }"
           aria-label="Submenú de sección"
         >
@@ -53,129 +54,138 @@
           </div>
 
           <ul class="side-list" v-if="!loadingPerms">
-            <!-- Submenú: Producción -->
+            <!-- Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
-              <!--
-              <li v-if="has('produccion_proyeccion')">
-                <router-link to="/produccion/proyeccion" class="side-menu-link" @click="onNavClick">Proyección</router-link>
-              </li>
-              -->
+              <li class="side-group">Operación</li>
               <li v-if="has('produccion_agregar_estanque')">
-                <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar estanque</router-link>
+                <router-link to="/producción/agregar-estanque" class="side-link" @click="onNavClick">Agregar estanque</router-link>
               </li>
               <li v-if="has('produccion_siembra')">
-                <router-link to="/producción/siembra" class="side-menu-link" @click="onNavClick">Siembra</router-link>
+                <router-link to="/producción/siembra" class="side-link" @click="onNavClick">Siembra</router-link>
               </li>
               <li v-if="has('produccion_alimentar')">
-                <router-link to="/producción/alimentar" class="side-menu-link" @click="onNavClick">Alimentar</router-link>
+                <router-link to="/producción/alimentar" class="side-link" @click="onNavClick">Alimentar</router-link>
               </li>
               <li v-if="has('produccion_calidad_agua')">
-                <router-link to="/producción/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad de agua</router-link>
+                <router-link to="/producción/calidad-agua" class="side-link" @click="onNavClick">Calidad de agua</router-link>
               </li>
               <li v-if="has('produccion_dieta')">
-                <router-link to="/producción/dieta" class="side-menu-link" @click="onNavClick">Dieta</router-link>
+                <router-link to="/producción/dieta" class="side-link" @click="onNavClick">Dieta</router-link>
               </li>
               <li v-if="has('produccion_crecimiento')">
-                <router-link to="/producción/crecimiento" class="side-menu-link" @click="onNavClick">Crecimiento</router-link>
+                <router-link to="/producción/crecimiento" class="side-link" @click="onNavClick">Crecimiento</router-link>
               </li>
+              <li class="side-sep"></li>
+              <li class="side-group">Cierre</li>
               <li v-if="has('produccion_cosecha')">
-                <router-link to="/producción/cosecha" class="side-menu-link" @click="onNavClick">Cosecha</router-link>
+                <router-link to="/producción/cosecha" class="side-link" @click="onNavClick">Cosecha</router-link>
               </li>
               <li v-if="has('produccion_tratamientos')">
-                <router-link to="/producción/tratamientos" class="side-menu-link" @click="onNavClick">Tratamientos</router-link>
+                <router-link to="/producción/tratamientos" class="side-link" @click="onNavClick">Tratamientos</router-link>
               </li>
               <li v-if="has('produccion_cuarentena')">
-                <router-link to="/producción/cuarentena" class="side-menu-link" @click="onNavClick">Cuarentena</router-link>
+                <router-link to="/producción/cuarentena" class="side-link" @click="onNavClick">Cuarentena</router-link>
               </li>
             </template>
 
-            <!-- Submenú: Reporte -->
+            <!-- Reporte -->
             <template v-else-if="currentMenu === 'Reporte' && can('menu_reporte')">
+              <li class="side-group">Reportes</li>
               <li v-if="has('reporte_estanque')">
-                <router-link to="/reporte/estanque" class="side-menu-link" @click="onNavClick">Estanque</router-link>
+                <router-link to="/reporte/estanque" class="side-link" @click="onNavClick">Estanque</router-link>
               </li>
               <li v-if="has('reporte_crecimiento')">
-                <router-link to="/reporte/crecimiento" class="side-menu-link" @click="onNavClick">Crecimiento</router-link>
+                <router-link to="/reporte/crecimiento" class="side-link" @click="onNavClick">Crecimiento</router-link>
               </li>
               <li v-if="has('reporte_gpc')">
-                <router-link to="/reporte/gpc" class="side-menu-link" @click="onNavClick">GPC</router-link>
+                <router-link to="/reporte/gpc" class="side-link" @click="onNavClick">GPC</router-link>
               </li>
               <li v-if="has('reporte_calidad_agua')">
-                <router-link to="/reporte/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad de agua</router-link>
+                <router-link to="/reporte/calidad-agua" class="side-link" @click="onNavClick">Calidad de agua</router-link>
               </li>
             </template>
 
-            <!-- Submenú: Almacén -->
+            <!-- Almacén -->
             <template v-else-if="currentMenu === 'Almacén' && can('menu_almacen')">
+              <li class="side-group">Inventarios</li>
               <li v-if="has('almacen_inventario')">
-                <router-link to="/almacén/inventario" class="side-menu-link" @click="onNavClick">Inventario</router-link>
-              </li>
-              <li v-if="has('almacen_proveedores')">
-                <router-link to="/almacén/proveedores" class="side-menu-link" @click="onNavClick">Proveedores</router-link>
-              </li>
-              <li v-if="has('almacen_alta_material')">
-                <router-link to="/almacén/alta-material" class="side-menu-link" @click="onNavClick">Alta de material</router-link>
-              </li>
-              <li v-if="has('almacen_alta_proveedores')">
-                <router-link to="/almacén/alta-proveedores" class="side-menu-link" @click="onNavClick">Alta de proveedores</router-link>
-              </li>
-              <li v-if="has('almacen_entradas')">
-                <router-link to="/almacén/entradas" class="side-menu-link" @click="onNavClick">Entradas</router-link>
-              </li>
-              <li v-if="has('almacen_salidas')">
-                <router-link to="/almacén/salidas" class="side-menu-link" @click="onNavClick">Salidas</router-link>
+                <router-link to="/almacén/inventario" class="side-link" @click="onNavClick">Inventario</router-link>
               </li>
               <li v-if="has('almacen_inventario_fisico')">
-                <router-link to="/almacén/inventario-fisico" class="side-menu-link" @click="onNavClick">Inventario físico</router-link>
+                <router-link to="/almacén/inventario-fisico" class="side-link" @click="onNavClick">Inventario físico</router-link>
+              </li>
+              <li class="side-sep"></li>
+              <li class="side-group">Entradas/Salidas</li>
+              <li v-if="has('almacen_entradas')">
+                <router-link to="/almacén/entradas" class="side-link" @click="onNavClick">Entradas</router-link>
+              </li>
+              <li v-if="has('almacen_salidas')">
+                <router-link to="/almacén/salidas" class="side-link" @click="onNavClick">Salidas</router-link>
+              </li>
+              <li class="side-sep"></li>
+              <li class="side-group">Catálogos</li>
+              <li v-if="has('almacen_proveedores')">
+                <router-link to="/almacén/proveedores" class="side-link" @click="onNavClick">Proveedores</router-link>
+              </li>
+              <li v-if="has('almacen_alta_material')">
+                <router-link to="/almacén/alta-material" class="side-link" @click="onNavClick">Alta de material</router-link>
+              </li>
+              <li v-if="has('almacen_alta_proveedores')">
+                <router-link to="/almacén/alta-proveedores" class="side-link" @click="onNavClick">Alta de proveedores</router-link>
               </li>
             </template>
 
-            <!-- Submenú: Estadístico -->
+            <!-- Estadístico -->
             <template v-else-if="currentMenu === 'Estadístico' && can('menu_estadistico')">
+              <li class="side-group">Pruebas</li>
               <li v-if="has('estadistico_kolmogorov_smirnov')">
-                <router-link to="/estadístico/kolmogorov-smirnov" class="side-menu-link" @click="onNavClick">Kolmogorov–Smirnov</router-link>
+                <router-link to="/estadístico/kolmogorov-smirnov" class="side-link" @click="onNavClick">Kolmogorov–Smirnov</router-link>
               </li>
               <li v-if="has('estadistico_shapiro_wilk')">
-                <router-link to="/estadístico/shapiro-wilk" class="side-menu-link" @click="onNavClick">Shapiro–Wilk</router-link>
+                <router-link to="/estadístico/shapiro-wilk" class="side-link" @click="onNavClick">Shapiro–Wilk</router-link>
               </li>
               <li v-if="has('estadistico_anova')">
-                <router-link to="/estadístico/anova" class="side-menu-link" @click="onNavClick">ANOVA</router-link>
+                <router-link to="/estadístico/anova" class="side-link" @click="onNavClick">ANOVA</router-link>
               </li>
             </template>
 
-            <!-- Submenú: Contaduría -->
+            <!-- Contaduría -->
             <template v-else-if="currentMenu === 'Contaduría' && can('menu_contaduria')">
-              <li v-if="has('contaduria_nomina')">
-                <router-link to="/contaduría/nomina" class="side-menu-link" @click="onNavClick">Nómina</router-link>
-              </li>
-              <li v-if="has('contaduria_sueldos')">
-                <router-link to="/contaduría/sueldos" class="side-menu-link" @click="onNavClick">Salarios</router-link>
-              </li>
+              <li class="side-group">Gastos y pagos</li>
               <li v-if="has('contaduria_pagos_servicios')">
-                <router-link to="/contaduría/pagos-servicios" class="side-menu-link" @click="onNavClick">Pagos de servicios</router-link>
-              </li>
-              <li v-if="has('contaduria_compras')">
-                <router-link to="/contaduría/compras" class="side-menu-link" @click="onNavClick">Compras</router-link>
+                <router-link to="/contaduría/pagos-servicios" class="side-link" @click="onNavClick">Pagos de servicios</router-link>
               </li>
               <li v-if="has('contaduria_mantenimiento')">
-                <router-link to="/contaduría/mantenimiento" class="side-menu-link" @click="onNavClick">Mantenimiento</router-link>
+                <router-link to="/contaduría/mantenimiento" class="side-link" @click="onNavClick">Mantenimiento</router-link>
               </li>
               <li v-if="has('contaduria_costos_operativos')">
-                <router-link to="/contaduría/costos-operativos" class="side-menu-link" @click="onNavClick">Costos operativos</router-link>
+                <router-link to="/contaduría/costos-operativos" class="side-link" @click="onNavClick">Costos operativos</router-link>
+              </li>
+              <li class="side-sep"></li>
+              <li class="side-group">Personal y compras</li>
+              <li v-if="has('contaduria_nomina')">
+                <router-link to="/contaduría/nomina" class="side-link" @click="onNavClick">Nómina</router-link>
+              </li>
+              <li v-if="has('contaduria_sueldos')">
+                <router-link to="/contaduría/sueldos" class="side-link" @click="onNavClick">Salarios</router-link>
+              </li>
+              <li v-if="has('contaduria_compras')">
+                <router-link to="/contaduría/compras" class="side-link" @click="onNavClick">Compras</router-link>
               </li>
               <li v-if="has('contaduria_ventas')">
-                <router-link to="/contaduría/ventas" class="side-menu-link" @click="onNavClick">Ventas</router-link>
+                <router-link to="/contaduría/ventas" class="side-link" @click="onNavClick">Ventas</router-link>
               </li>
             </template>
 
             <!-- Cuenta -->
             <template v-else-if="currentMenu === 'Cuenta'">
+              <li class="side-group">Cuenta</li>
               <li>
-                <button class="side-menu-link" @click="logout">Cerrar sesión</button>
+                <button class="side-link btn-logout" @click="logout">Cerrar sesión</button>
               </li>
             </template>
 
-            <!-- Submenú vacío -->
+            <!-- Vacío -->
             <template v-else>
               <li class="side-empty">Selecciona una sección arriba</li>
             </template>
@@ -186,11 +196,11 @@
           </ul>
         </aside>
 
-        <!-- Overlay (solo móvil/tablet) -->
+        <!-- Overlay móvil -->
         <div v-if="isOverlayMode && isMenuOpen" class="overlay" @click="closeMenu"></div>
 
         <!-- Contenido -->
-        <main class="content" :class="{ 'with-aside': !isOverlayMode && isMenuOpen }">
+        <main class="content content--sheet" :class="{ 'with-aside': !isOverlayMode && isMenuOpen }">
           <router-view />
         </main>
       </div>
@@ -277,13 +287,23 @@ export default {
       permisos: { ...DEFAULT_PERMS },
       loadingPerms: false,
 
-      // Alias de permisos (front) → sin tocar el back
+      // Alias (no toca backend)
       permAliases: {
         produccion_proyeccion: "produccion_agregar_estanque",
       },
 
-      // Base de la API (configurable por .env)
+      // API
       apiBase: import.meta.env.VITE_API_URL || "/api",
+
+      // Iconos para el top menú (solo visual)
+      icons: {
+        "Producción": "🧪",
+        "Reporte": "📄",
+        "Almacén": "📦",
+        "Estadístico": "📊",
+        "Contaduría": "💰",
+        "Cuenta": "👤",
+      },
     };
   },
   computed: {
@@ -369,7 +389,7 @@ export default {
       }
     },
 
-    // === Navegación/UX ===
+    // === UX ===
     onNavClick() { if (this.isOverlayMode) this.closeMenu(); },
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
@@ -452,75 +472,122 @@ export default {
 </script>
 
 <style scoped>
-/* ===== Topbar estilo login ===== */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+/* ===== TOPBAR igual al login (blur, translúcido, pills) ===== */
+.topbar.login-like{
+  position: sticky; top: 0; z-index: 10;
   backdrop-filter: blur(8px);
   background: rgba(255,255,255,.75);
   border-bottom: 1px solid rgba(0,0,0,.06);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px clamp(12px, 4vw, 28px);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 10px clamp(12px, 4vw, 28px);
+}
+.brand-group{ display:flex; align-items:center; gap:8px; }
+.hamburger{
+  border:0; background:transparent; cursor:pointer;
+  font-size:20px; padding:8px 10px; border-radius:10px; color:#583a34;
+}
+.hamburger:hover{ background:rgba(141,42,42,.08); }
+.brand{ display:flex; align-items:center; gap:10px; user-select:none; cursor:pointer; }
+.brand:focus{ outline:2px solid #8d2a2a33; outline-offset:4px; }
+.brand-logo{ height:34px; width:auto; filter:drop-shadow(0 1px 3px rgba(0,0,0,.15)); }
+.brand-name{ font-weight:800; letter-spacing:.2px; color:var(--color-primary); }
+
+/* Pills */
+.main-nav{ display:flex; gap:clamp(6px,2vw,12px); flex-wrap:wrap; }
+.nav-pill{
+  border:0; background:transparent; cursor:pointer;
+  font-weight:800; padding:8px 14px; border-radius:999px;
+  display:flex; align-items:center; gap:8px;
+  color:#583a34;
+  transition:transform .08s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.nav-pill:hover{ background:rgba(141,42,42,.08); color:var(--color-primary); }
+.nav-pill.active{
+  background:#ffc107; color:#1f2937; /* igual al login (pill amarilla) */
+  box-shadow:0 6px 16px rgba(0,0,0,.08);
+}
+.pill-ico{ font-size:16px; line-height:1; }
+
+/* ===== SIDE MENU: panel claro con sombra y bordes ===== */
+.side-menu.sheet{
+  position: fixed; top: 70px; left: 12px; bottom: 12px;
+  width: 280px;
+  background: rgba(255,255,255,.96);
+  color: var(--color-text);
+  transform: translateX(-120%); transition: transform .25s ease;
+  z-index: 12; overflow-y: auto;
+  border:1px solid var(--color-border); border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.14);
+}
+.side-menu.open{ transform: translateX(0); }
+@media (min-width:1024px){
+  .side-menu.sheet{ left:16px; top: 86px; }
 }
 
-.brand-group { display: flex; align-items: center; gap: 8px; }
+.side-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px; position: sticky; top:0;
+  background: rgba(255,255,255,.98);
+  border-bottom:1px solid var(--color-border);
+  border-top-left-radius:14px; border-top-right-radius:14px;
+}
+.side-title{ font-weight:900; color:var(--color-primary); }
+.side-close{
+  background:transparent; color:#6b7280; border:none; cursor:pointer;
+  font-size:18px; border-radius:8px; padding:6px 8px;
+}
+.side-close:hover{ background:rgba(31,41,55,.06); }
 
-/* Botón hamburguesa armonizado con el login */
-.hamburger {
-  border: 0; background: transparent; cursor: pointer;
-  font-size: 20px; padding: 8px 10px; border-radius: 10px; color: #583a34;
+.side-list{ list-style:none; padding:10px; margin:0; }
+.side-group{
+  margin:8px 6px 6px; font-size:12px; text-transform:uppercase;
+  letter-spacing:.08em; color:#6b7280; font-weight:800;
 }
-.hamburger:hover { background: rgba(141,42,42,.08); }
-
-/* Marca (logo + nombre) */
-.brand {
-  display: flex; align-items: center; gap: 10px;
-  user-select: none; cursor: pointer;
+.side-sep{ height:8px; }
+.side-link{
+  display:block; width:100%; text-align:left;
+  padding:10px 12px; border-radius:10px; text-decoration:none;
+  color:var(--color-text); background:transparent; border:none; cursor:pointer;
+  transition: background .2s ease, color .2s ease, padding-left .12s ease;
 }
-.brand:focus { outline: 2px solid #8d2a2a33; outline-offset: 4px; }
-.brand-logo { height: 34px; width: auto; filter: drop-shadow(0 1px 3px rgba(0,0,0,.15)); }
-.brand-name { font-weight: 800; letter-spacing: .2px; color: var(--color-primary); }
-
-/* Navegación tipo “pill” del login */
-.main-nav { display: flex; gap: clamp(6px, 2vw, 12px); flex-wrap: wrap; }
-.nav-link {
-  position: relative;
-  border: 0; background: transparent; cursor: pointer;
-  font-weight: 700; padding: 8px 12px; border-radius: 10px;
-  color: #583a34;
-  transition: transform .08s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
-}
-.nav-link:hover {
-  background: rgba(141,42,42,.08);
-  color: var(--color-primary);
-}
-.nav-link.active {
+.side-link:hover{ background:rgba(141,42,42,.08); color:var(--color-primary); }
+.side-link.router-link-active,
+.side-link.router-link-exact-active{
   background: rgba(141,42,42,.12);
   color: var(--color-primary);
   box-shadow: inset 0 0 0 1px rgba(141,42,42,.25);
+  font-weight:800;
 }
 
-/* Resalta el link activo del submenú usando clases de Vue Router */
-.side-menu-link.router-link-active,
-.side-menu-link.router-link-exact-active {
-  background: #495057;
-  font-weight: 700;
+/* Overlay */
+.overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:11;
 }
 
-/* En tema oscuro, ajusta topbar y links */
-:deep(html.theme-dark) .topbar {
+/* CONTENIDO como “sheet” blanco (coherente con login) */
+.content.content--sheet{
+  background: var(--color-surface);
+  padding: 24px;
+  border-top-left-radius: 14px;
+  min-height: calc(100vh - 70px);
+  transition: padding-left .25s ease;
+}
+@media (min-width:1024px){
+  .content.with-aside{ padding-left: 320px; } /* 280 + margen */
+}
+
+/* Tema oscuro: mantener coherencia */
+:deep(html.theme-dark) .topbar.login-like{
   background: rgba(15, 23, 42, 0.6);
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
-:deep(html.theme-dark) .brand-name { color: var(--color-primary); }
-:deep(html.theme-dark) .nav-link { color: #e5e7eb; }
-:deep(html.theme-dark) .nav-link:hover { background: rgba(141,42,42,.22); }
-:deep(html.theme-dark) .nav-link.active {
-  background: rgba(141,42,42,.28);
-  box-shadow: inset 0 0 0 1px rgba(141,42,42,.35);
+:deep(html.theme-dark) .nav-pill{ color:#e5e7eb; }
+:deep(html.theme-dark) .nav-pill:hover{ background: rgba(141,42,42,.22); color:#fff; }
+:deep(html.theme-dark) .side-menu.sheet{
+  background: rgba(15,23,42,.96); color:#e5e7eb;
+  border-color:#273449;
 }
+:deep(html.theme-dark) .side-header{ background: rgba(15,23,42,.98); border-color:#273449; }
+:deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
+:deep(html.theme-dark) .side-link.router-link-active{ background: rgba(141,42,42,.28); }
 </style>
