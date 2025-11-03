@@ -1,5 +1,5 @@
 <template>
-  <!-- Activa tema granate IPN solo en este subtree -->
+  <!-- Activa tema granate IPN solo en este subtree (opcional) -->
   <div class="theme-ipn">
     <!-- Rutas de autenticación -->
     <div v-if="isAuthRoute">
@@ -8,9 +8,9 @@
 
     <!-- Layout general (usuario logueado) -->
     <div v-else-if="loggedIn" class="app-shell">
-      <!-- Header superior -->
-      <header class="header">
-        <div class="header-left">
+      <!-- Header superior con estilo del login -->
+      <header class="topbar">
+        <div class="brand-group">
           <button
             class="hamburger"
             @click="toggleMenu"
@@ -20,15 +20,18 @@
             title="Menú"
           >☰</button>
 
-          <img class="brand" src="@/assets/AppQuacultureLogo.png" alt="AppQuaculture" />
+          <div class="brand" @click="changeMenu(currentMenu || 'Producción')" role="button" tabindex="0">
+            <img class="brand-logo" src="@/assets/AppQuacultureLogo.png" alt="AppQuaculture" draggable="false" />
+            <span class="brand-name">AppQuaculture</span>
+          </div>
         </div>
 
-        <nav class="menu-buttons" aria-label="Menú principal">
+        <nav class="main-nav" aria-label="Navegación principal">
           <button
             v-for="item in visibleMenuItems"
             :key="item"
+            :class="['nav-link', { active: currentMenu === item }]"
             @click="changeMenu(item)"
-            :class="{ active: currentMenu === item }"
             :title="`Ir a ${item}`"
           >
             {{ item }}
@@ -52,7 +55,6 @@
           <ul class="side-list" v-if="!loadingPerms">
             <!-- Submenú: Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
-              <!-- Proyección (alias de agregar estanque) -->
               <!--
               <li v-if="has('produccion_proyeccion')">
                 <router-link to="/produccion/proyeccion" class="side-menu-link" @click="onNavClick">Proyección</router-link>
@@ -276,7 +278,6 @@ export default {
       loadingPerms: false,
 
       // Alias de permisos (front) → sin tocar el back
-      // 'produccion_proyeccion' usará el mismo flag que 'produccion_agregar_estanque'
       permAliases: {
         produccion_proyeccion: "produccion_agregar_estanque",
       },
@@ -286,16 +287,13 @@ export default {
     };
   },
   computed: {
-    // rutas de autenticación
     isAuthRoute() {
       const path = this.$route.path;
       return path === "/login" || path === "/registrarusuario";
     },
-    // modo overlay depende del ancho
     isOverlayMode() {
       return this.viewportWidth < this.overlayBreakpoint;
     },
-    // Menús superiores visibles por permisos
     visibleMenuItems() {
       const allowed = [];
       if (this.can("menu_produccion")) allowed.push("Producción");
@@ -303,7 +301,6 @@ export default {
       if (this.can("menu_almacen")) allowed.push("Almacén");
       if (this.can("menu_estadistico")) allowed.push("Estadístico");
       if (this.can("menu_contaduria")) allowed.push("Contaduría");
-      // "Cuenta" visible siempre
       allowed.push("Cuenta");
       return allowed;
     },
@@ -337,7 +334,6 @@ export default {
       return Boolean(this.permisos && this.permisos[key]);
     },
     has(key) {
-      // alias → canon (si existe)
       const canon = this.permAliases?.[key] || key;
       const parent = this.parentFor(canon);
       if (parent && !this.can(parent)) return false;
@@ -456,8 +452,57 @@ export default {
 </script>
 
 <style scoped>
-/* Solo ajustes mínimos específicos a este SFC.
-   El resto de estilos los provee appquaculture.css (v2). */
+/* ===== Topbar estilo login ===== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: blur(8px);
+  background: rgba(255,255,255,.75);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px clamp(12px, 4vw, 28px);
+}
+
+.brand-group { display: flex; align-items: center; gap: 8px; }
+
+/* Botón hamburguesa armonizado con el login */
+.hamburger {
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 20px; padding: 8px 10px; border-radius: 10px; color: #583a34;
+}
+.hamburger:hover { background: rgba(141,42,42,.08); }
+
+/* Marca (logo + nombre) */
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  user-select: none; cursor: pointer;
+}
+.brand:focus { outline: 2px solid #8d2a2a33; outline-offset: 4px; }
+.brand-logo { height: 34px; width: auto; filter: drop-shadow(0 1px 3px rgba(0,0,0,.15)); }
+.brand-name { font-weight: 800; letter-spacing: .2px; color: var(--color-primary); }
+
+/* Navegación tipo “pill” del login */
+.main-nav { display: flex; gap: clamp(6px, 2vw, 12px); flex-wrap: wrap; }
+.nav-link {
+  position: relative;
+  border: 0; background: transparent; cursor: pointer;
+  font-weight: 700; padding: 8px 12px; border-radius: 10px;
+  color: #583a34;
+  transition: transform .08s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.nav-link:hover {
+  background: rgba(141,42,42,.08);
+  color: var(--color-primary);
+}
+.nav-link.active {
+  background: rgba(141,42,42,.12);
+  color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px rgba(141,42,42,.25);
+}
 
 /* Resalta el link activo del submenú usando clases de Vue Router */
 .side-menu-link.router-link-active,
@@ -466,14 +511,16 @@ export default {
   font-weight: 700;
 }
 
-/* Ajuste del logo del header (si necesitas) */
-.header .brand {
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,.15));
+/* En tema oscuro, ajusta topbar y links */
+:deep(html.theme-dark) .topbar {
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
-
-/* En tema oscuro, matiza el activo del submenú */
-:deep(html.theme-dark) .side-menu-link.router-link-active,
-:deep(html.theme-dark) .side-menu-link.router-link-exact-active {
-  background: #3b4248;
+:deep(html.theme-dark) .brand-name { color: var(--color-primary); }
+:deep(html.theme-dark) .nav-link { color: #e5e7eb; }
+:deep(html.theme-dark) .nav-link:hover { background: rgba(141,42,42,.22); }
+:deep(html.theme-dark) .nav-link.active {
+  background: rgba(141,42,42,.28);
+  box-shadow: inset 0 0 0 1px rgba(141,42,42,.35);
 }
 </style>
