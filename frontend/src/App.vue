@@ -84,7 +84,7 @@
                 <router-link to="/producción/tratamientos" class="side-link" @click="onNavClick">Tratamientos</router-link>
               </li>
               <li v-if="has('produccion_cuarentena')">
-                <router-link to="/producción/cuarentena" class="side-link" @click="onNavClick">Cuarentena</router-link>
+                <router-link to="/producción/cuarentena" class="side-link" @click="onNavClick">Proyeccion de Siembra</router-link>
               </li>
             </template>
 
