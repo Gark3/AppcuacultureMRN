@@ -3,9 +3,7 @@
   <section class="card">
     <div class="card__header">
       <h2 class="card__title">Siembras Activas</h2>
-      <p class="card__sub">
-        Filtra y registra la <strong>cosecha</strong> de tus siembras activas.
-      </p>
+      <p class="card__sub">Filtra y registra la <strong>cosecha</strong> de tus siembras activas.</p>
     </div>
 
     <div class="field">
@@ -20,20 +18,35 @@
     </div>
   </section>
 
-  <!-- Carrusel con scroll-snap (sin descuadres) -->
-  <section
-    class="carousel container container--fluid"
-    :class="{ 'carousel--compact': totalSlides <= visible }"
-  >
-    <div class="viewport" ref="viewport">
-      <div class="track" :style="{ gap: gap + 'px' }" ref="track">
+  <!-- Carrusel -->
+  <section class="container container--fluid">
+    <div class="carousel">
+      <!-- Prev -->
+      <button
+        v-if="showNav"
+        class="nav-btn nav-btn--prev"
+        :disabled="!canPrev"
+        @click="prev"
+        aria-label="Anterior"
+      >‹</button>
+
+      <!-- Viewport -->
+      <div
+        class="viewport"
+        ref="viewport"
+        :style="{'--slides': slides, '--gap': gap + 'px'}"
+      >
         <div
-          v-for="(s, i) in siembrasFiltradas"
-          :key="s.id_siembra || i"
-          class="slide"
-          :style="slideStyle"
+          class="track"
+          ref="track"
+          :class="{ 'track--center': total <= visible }"
+          @scroll.passive="onScroll"
         >
-          <article class="card card--fill">
+          <article
+            v-for="(s,i) in siembrasFiltradas"
+            :key="s.id_siembra || i"
+            class="card slide"
+          >
             <div class="card__header">
               <h3 class="card__title">{{ s.estanque_nombre || '—' }}</h3>
               <p class="card__sub">
@@ -46,13 +59,13 @@
               <p><strong>Superficie:</strong> {{ s.estanque_superficie ?? '—' }} m²</p>
               <p><strong>Profundidad:</strong> {{ s.estanque_profundidad ?? '—' }} m</p>
               <p><strong>Infraestructura:</strong> {{ s.estanque_infraestructura || '—' }}</p>
-              <p class="ellipsis"><strong>Ubicación:</strong> {{ s.estanque_ubicacion || '—' }}</p>
+              <p><strong>Ubicación:</strong> {{ s.estanque_ubicacion || '—' }}</p>
               <p><strong>Fecha de Siembra:</strong> {{ s.fecha || '—' }}</p>
             </div>
 
-            <div class="mt-auto">
+            <div class="mt-2">
               <button
-                class="btn btn--accent btn--lg w-100"
+                class="btn btn--primary btn--lg slide__btn"
                 @click="registrarCosecha(s.id_siembra)"
               >
                 Registrar Cosecha
@@ -62,20 +75,10 @@
         </div>
       </div>
 
-      <!-- Flechas -->
+      <!-- Next -->
       <button
-        v-if="totalSlides > visible"
-        class="nav-btn nav-btn--prev"
-        type="button"
-        :disabled="!canPrev"
-        @click="prev"
-        aria-label="Anterior"
-      >‹</button>
-
-      <button
-        v-if="totalSlides > visible"
+        v-if="showNav"
         class="nav-btn nav-btn--next"
-        type="button"
         :disabled="!canNext"
         @click="next"
         aria-label="Siguiente"
@@ -83,243 +86,212 @@
     </div>
 
     <!-- Dots -->
-    <div v-if="totalSlides > visible" class="dots">
+    <div v-if="pages > 1" class="dots">
       <button
-        v-for="(pg, idx) in pageCount"
-        :key="idx"
-        type="button"
+        v-for="n in pages"
+        :key="n"
         class="dot"
-        :class="{ active: pageIndex === idx }"
-        @click="goToPage(idx)"
-        :aria-label="`Ir a grupo ${idx + 1}`"
+        :class="{ active: currentIndex === (n-1) }"
+        @click="goTo(n-1)"
+        :aria-label="`Ir al slide ${n}`"
       />
     </div>
   </section>
 </template>
 
 <script>
-import axios from '@/services/axios';
-
+import axios from "@/services/axios";
 export default {
-  name: 'SiembrasActivasCosecha',
+  name: "SiembrasActivasCosecha",
   data() {
     return {
       siembras: [],
-      busqueda: '',
-
-      // Carrusel
-      vw: typeof window !== 'undefined' ? window.innerWidth : 1280,
-      gap: 16,               // espacio entre tarjetas (px)
-      perViewDesktop: 3,     // >=1024px
-      perViewTablet: 2,      // 640–1023px
-      perViewMobile: 1,      // <640px
-
-      // Estado de scroll
-      index: 0,              // índice “lógico” (tarjeta inicial visible)
-      stepPx: 0              // ancho de una tarjeta + gap (px)
+      busqueda: "",
+      // carrusel
+      slides: 3,           // 3/2/1 (desktop/tablet/móvil)
+      gap: 16,             // px entre tarjetas
+      currentIndex: 0,
     };
   },
   computed: {
     siembrasFiltradas() {
-      const filtro = this.busqueda.trim().toLowerCase();
-      if (!filtro) return this.siembras;
+      const f = this.busqueda.trim().toLowerCase();
+      if (!f) return this.siembras;
       return this.siembras.filter((s) =>
-        Object.values(s).some((v) => String(v ?? '').toLowerCase().includes(filtro))
+        Object.values(s).some((v) => String(v ?? "").toLowerCase().includes(f))
       );
     },
-
-    totalSlides() { return this.siembrasFiltradas?.length || 0; },
-    visible() {
-      if (this.vw < 640) return this.perViewMobile;
-      if (this.vw < 1024) return this.perViewTablet;
-      return this.perViewDesktop;
-    },
-    maxIndex() { return Math.max(0, this.totalSlides - this.visible); },
-    canPrev() { return this.index > 0; },
-    canNext() { return this.index < this.maxIndex; },
-    pageIndex() { return Math.floor(this.index); },
-    pageCount() { return Math.max(1, this.totalSlides - this.visible + 1); },
-
-    // Ancho flexible para cada slide, sin descuadres, ocupando todo el contenedor
-    slideStyle() {
-      const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
-      return {
-        flex: `0 0 calc((100% - ${this.gap * (v - 1)}px) / ${v})`,
-        maxWidth: `calc((100% - ${this.gap * (v - 1)}px) / ${v})`
-      };
-    },
+    total() { return this.siembrasFiltradas.length; },
+    visible() { return this.slides; },
+    pages() { return Math.max(1, this.total - this.visible + 1); }, // desplaza 1 por vez
+    canPrev() { return this.currentIndex > 0; },
+    canNext() { return this.currentIndex < this.pages - 1; },
+    showNav() { return this.total > this.visible; },
   },
   methods: {
     async obtenerSiembras() {
       try {
         const user = JSON.parse(localStorage.getItem('user'));
         const [siembrasRes, estanquesRes] = await Promise.all([
-          axios.get('/siembra/'),
-          axios.get('/estanque/')
+          axios.get("/siembra/"),
+          axios.get("/estanque/"),
         ]);
         const estanques = estanquesRes.data || [];
         this.siembras = (siembrasRes.data || [])
-          .filter(s => s.estado === 1 && s.acuicola === user.acuicola)
-          .map(s => {
-            const e = estanques.find(x => x.id_estanque === s.estanque) || {};
+          .filter((s) => s.estado === 1 && s.acuicola === user.acuicola)
+          .map((s) => {
+            const e = estanques.find((x) => x.id_estanque === s.estanque) || {};
             return {
               ...s,
-              estanque_nombre: e.nombre || '',
-              estanque_superficie: e.superficie ?? '',
-              estanque_profundidad: e.profundidad ?? '',
-              estanque_infraestructura: e.infraestructura || '',
-              estanque_ubicacion: e.ubicacion || ''
+              estanque_nombre: e.nombre || "",
+              estanque_superficie: e.superficie ?? "",
+              estanque_profundidad: e.profundidad ?? "",
+              estanque_infraestructura: e.infraestructura || "",
+              estanque_ubicacion: e.ubicacion || "",
             };
           });
-
-        this.$nextTick(() => this.measureStep());
-      } catch (error) {
-        console.error('Error al obtener siembras o estanques:', error);
+        // reajusta índice si hay menos ítems
+        if (this.currentIndex > this.pages - 1) this.currentIndex = Math.max(0, this.pages - 1);
+        this.$nextTick(this.scrollToIndex);
+      } catch (e) {
+        console.error("Error al obtener siembras/estanques:", e);
       }
     },
+    registrarCosecha(id) { this.$router.push(`/producción/cosecha/registro/${id}`); },
 
-    // Medir exactamente el “paso”: ancho de una tarjeta + gap
-    measureStep() {
+    // --- Carrusel
+    slideWidth() {
       const track = this.$refs.track;
-      const slide = track?.querySelector('.slide');
-      if (!slide) { this.stepPx = 0; return; }
+      if (!track || !track.firstElementChild) return 0;
+      const slide = track.firstElementChild;
       const rect = slide.getBoundingClientRect();
-      this.stepPx = rect.width + this.gap;
-      // Ajustar índice por si cambió el visible
-      if (this.index > this.maxIndex) this.index = this.maxIndex;
-      this.syncScrollToIndex(false);
+      // sumar el gap (porque flex-gap no está en offsetWidth)
+      const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || "0");
+      return rect.width + gap;
     },
-
-    // Sincroniza el scroll horizontal al índice actual
-    syncScrollToIndex(smooth = true) {
-      const vp = this.$refs.viewport;
-      if (!vp || !this.stepPx) return;
-      const left = this.index * this.stepPx;
-      vp.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+    scrollToIndex() {
+      const track = this.$refs.track;
+      if (!track) return;
+      const x = this.currentIndex * this.slideWidth();
+      track.scrollTo({ left: x, behavior: "smooth" });
     },
-
-    // Derivar índice según el scroll actual (para dots y estado de flechas)
-    deriveIndexFromScroll() {
-      const vp = this.$refs.viewport;
-      if (!vp || !this.stepPx) return;
-      const idx = Math.round(vp.scrollLeft / this.stepPx);
-      this.index = Math.max(0, Math.min(idx, this.maxIndex));
-    },
-
     prev() {
       if (!this.canPrev) return;
-      this.index -= 1;
-      this.syncScrollToIndex(true);
+      this.currentIndex -= 1;
+      this.scrollToIndex();
     },
     next() {
       if (!this.canNext) return;
-      this.index += 1;
-      this.syncScrollToIndex(true);
+      this.currentIndex += 1;
+      this.scrollToIndex();
     },
-    goToPage(p) {
-      this.index = Math.max(0, Math.min(p, this.maxIndex));
-      this.syncScrollToIndex(true);
+    goTo(idx) {
+      this.currentIndex = Math.min(Math.max(0, idx), this.pages - 1);
+      this.scrollToIndex();
     },
-
-    registrarCosecha(id) {
-      this.$router.push(`/producción/cosecha/registro/${id}`);
+    onScroll() {
+      // mantiene puntos razonablemente sincronizados si el usuario arrastra con touchpad
+      const track = this.$refs.track;
+      if (!track) return;
+      const w = this.slideWidth();
+      if (w > 0) this.currentIndex = Math.round(track.scrollLeft / w);
     },
-
-    onResize() {
-      this.vw = window.innerWidth;
-      this.$nextTick(() => this.measureStep());
-    }
+    setSlidesByViewport() {
+      const w = window.innerWidth;
+      this.slides = w >= 1024 ? 3 : w >= 700 ? 2 : 1;
+      // Recalcular scroll al cambiar # de visibles
+      this.$nextTick(this.scrollToIndex);
+    },
   },
   mounted() {
     this.obtenerSiembras();
-    this.onResize();
-    window.addEventListener('resize', this.onResize, { passive: true });
-
-    // Vincular scroll para actualizar índice y evitar desalineación
-    const vp = this.$refs.viewport;
-    if (vp) vp.addEventListener('scroll', this.deriveIndexFromScroll, { passive: true });
+    this.setSlidesByViewport();
+    window.addEventListener("resize", this.setSlidesByViewport);
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.onResize);
-    const vp = this.$refs.viewport;
-    if (vp) vp.removeEventListener('scroll', this.deriveIndexFromScroll);
-  }
+    window.removeEventListener("resize", this.setSlidesByViewport);
+  },
 };
 </script>
 
 <style scoped>
-/* Que el carrusel pueda ocupar el 100% horizontal */
-.container.container--fluid { max-width: 100% !important; }
+/* --- contenedor fluido --- */
+.container--fluid { max-width: 1400px; }
 
-/* Estructura del carrusel */
-.carousel { margin-top: 12px; }
-.viewport {
+/* --- carrusel --- */
+.carousel {
   position: relative;
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-radius: var(--radius-lg, 14px);
-  background: var(--color-surface, #fff);
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.10));
-  scroll-behavior: smooth;
-  scrollbar-width: none;        /* Firefox */
+  margin-top: 10px;
 }
-.viewport::-webkit-scrollbar { display: none; } /* Chrome/Safari */
 
-/* Pista y slides */
+.viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
 .track {
   display: flex;
-  width: max-content;
-  padding: 20px;
-  box-sizing: border-box;
-  scroll-snap-type: x mandatory;
+  gap: var(--gap);
+  /* importante para que el gap no provoque scroll vertical */
+  align-items: stretch;
+  scroll-behavior: smooth;
+  /* evita “saltos” por scroll snap en algunos navegadores */
 }
+.track--center {
+  justify-content: center;   /* cuando hay <= visibles, centramos */
+}
+
+/* Cada slide ocupa exactamente 1/N del ancho visible */
 .slide {
-  display: flex;
-  scroll-snap-align: start;
+  flex: 0 0 calc((100% - (var(--gap) * (var(--slides) - 1))) / var(--slides));
+  min-width: calc((100% - (var(--gap) * (var(--slides) - 1))) / var(--slides));
 }
 
-/* Tarjeta */
-.card--fill { display: flex; flex-direction: column; height: 100%; width: 100%; }
-.meta p { margin: 6px 0; font-size: .95rem; }
-.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mt-auto { margin-top: auto; }
-.w-100 { width: 100%; }
+/* Boton NO a 100% (algunas hojas globales lo fuerzan); lo controlamos aquí */
+.slide__btn {
+  width: auto !important;
+  display: inline-flex;
+}
 
-/* Flechas */
+/* Navegación */
 .nav-btn {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   border: none;
-  width: 40px; height: 40px;
-  border-radius: 999px;
   background: rgba(0,0,0,.35);
-  color: #fff; font-size: 22px;
-  display: grid; place-items: center;
+  color: #fff;
+  width: 36px;
+  height: 48px;
+  border-radius: 10px;
   cursor: pointer;
+  z-index: 5;
 }
-.nav-btn--prev { left: 10px; }
-.nav-btn--next { right: 10px; }
-.nav-btn:disabled { opacity: .35; cursor: default; }
+.nav-btn:hover { background: rgba(0,0,0,.5); }
+.nav-btn:disabled { opacity: .4; cursor: default; }
+.nav-btn--prev { left: -6px; }
+.nav-btn--next { right: -6px; }
 
 /* Dots */
 .dots {
-  display: flex; justify-content: center; gap: 10px;
-  padding: 10px 0 14px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
 }
 .dot {
-  width: 9px; height: 9px; border-radius: 999px;
-  background: #c7c7c7; border: none; cursor: pointer;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #d1d5db; border: none; cursor: pointer;
 }
-.dot.active { background: #8d2a2a; }
+.dot.active { background: #7f1d1d; }
 
-/* Si hay 1–2 tarjetas: centramos y ocultamos flechas/dots vía lógica de plantilla */
-.carousel--compact .track { justify-content: center; }
+/* Contenido */
+.meta p { margin: 6px 0; }
 
-/* Responsive */
-@media (max-width: 640px) {
-  .track { padding: 14px; }
-  .nav-btn { width: 36px; height: 36px; font-size: 20px; }
+/* Responsive refinado para botones de nav pegados al borde sin tapar contenido */
+@media (max-width: 700px) {
+  .nav-btn--prev { left: -2px; }
+  .nav-btn--next { right: -2px; }
 }
 </style>
