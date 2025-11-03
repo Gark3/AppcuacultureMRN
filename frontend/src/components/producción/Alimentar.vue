@@ -1,193 +1,204 @@
 <template>
-  <div class="registro-siembra">
-    <h1>Alimentación</h1>
+  <section class="card">
+    <div class="card__header">
+      <h2 class="card__title">Alimentación</h2>
+      <p class="card__sub">Registra alimento, lote y cantidad para la siembra seleccionada.</p>
+    </div>
 
-    <form @submit.prevent="submitForm">
-      <!-- Producto / Alimento -->
-      <div class="form-group">
-        <label for="productoId">Alimento</label>
+    <form class="form" @submit.prevent="submitForm" novalidate>
+      <!-- Producto -->
+      <div class="field">
+        <label for="producto">Alimento</label>
         <select
-          id="productoId"
-          v-model.number="productoSeleccionado"
+          id="producto"
+          class="select"
+          v-model="productoSeleccionado"
           :disabled="cargandoProductos"
           required
         >
           <option value="" disabled>
-            {{ cargandoProductos ? 'Cargando…' : 'Seleccione un alimento' }}
+            {{ cargandoProductos ? 'Cargando alimentos…' : 'Seleccione un alimento' }}
           </option>
-
           <option
             v-for="p in productosAlimento"
-            :key="getProductoId(p)"
-            :value="getProductoId(p)"
+            :key="p.id"
+            :value="p.id"
           >
-            {{ p.nombre }}
-            <template v-if="p.presentacion"> · {{ p.presentacion }}</template>
-            <template v-if="p.porcentaje_proteina"> · {{ p.porcentaje_proteina }}% proteína</template>
+            {{ p.nombre }} · {{ p.porcentaje_proteina ?? '—' }}% · {{ p.presentacion || '—' }}
           </option>
         </select>
-
         <small v-if="!cargandoProductos && productosAlimento.length === 0" class="text-muted">
           No hay productos del rubro “Alimento”.
         </small>
       </div>
 
-      <!-- Lote (según producto) -->
-      <div class="form-group">
+      <!-- Lote -->
+      <div class="field">
         <label for="lote">Lote</label>
         <select
           id="lote"
+          class="select"
           v-model="loteSeleccionado"
           :disabled="!productoSeleccionado || cargandoLotes"
           required
         >
           <option value="" disabled>
-            {{ !productoSeleccionado ? 'Seleccione un alimento primero'
-               : (cargandoLotes ? 'Cargando lotes…' : 'Seleccione un lote') }}
+            {{
+              !productoSeleccionado
+                ? 'Seleccione un alimento primero'
+                : (cargandoLotes ? 'Cargando lotes…' : 'Seleccione un lote')
+            }}
           </option>
-
-          <option v-for="l in lotes" :key="l.id" :value="l.id">
+          <option
+            v-for="l in lotes"
+            :key="l.id"
+            :value="l.id"
+          >
             {{ l.etiqueta }}
           </option>
         </select>
-
         <small v-if="productoSeleccionado && !cargandoLotes && lotes.length === 0" class="text-muted">
-          Este alimento no tiene lotes disponibles.
+          Este producto no tiene lotes registrados.
         </small>
       </div>
 
       <!-- Cantidad -->
-      <div class="form-group">
-        <label for="kg">Cantidad de Alimento (kg)</label>
+      <div class="field">
+        <label for="kg">Cantidad de alimento (kg)</label>
         <input
-          type="number"
           id="kg"
-          v-model="registro.kg"
-          min="0"
+          class="input"
+          type="number"
           step="0.01"
-          placeholder="Ingrese la cantidad de alimento"
+          min="0"
+          v-model.number="registro.kg"
+          placeholder="0.00"
           required
         />
       </div>
 
       <!-- Supervivencia -->
-      <div class="form-group">
-        <label for="supervivencia">Supervivencia</label>
+      <div class="field">
+        <label for="supervivencia">% supervivencia (opcional)</label>
         <input
-          type="number"
           id="supervivencia"
-          v-model="registro.supervivencia"
-          min="0"
+          class="input"
+          type="number"
           step="0.01"
-          placeholder="Ingrese la supervivencia"
+          min="0"
+          max="100"
+          v-model.number="registro.supervivencia"
+          placeholder="Ej. 98"
         />
       </div>
 
       <!-- Clima -->
-      <div class="form-group">
-        <label for="clima">Clima</label>
-        <input type="text" id="clima" v-model="registro.clima" placeholder="Ingrese el clima actual" />
+      <div class="field">
+        <label for="clima">Clima (opcional)</label>
+        <input
+          id="clima"
+          class="input"
+          type="text"
+          v-model.trim="registro.clima"
+          placeholder="Condición climática"
+        />
       </div>
 
       <!-- Observación -->
-      <div class="form-group">
-        <label for="observacion">Comentarios</label>
-        <textarea id="observacion" v-model="registro.observacion" placeholder="Ingrese algún comentario"></textarea>
+      <div class="field">
+        <label for="observacion">Comentarios (opcional)</label>
+        <textarea
+          id="observacion"
+          class="textarea"
+          rows="3"
+          v-model.trim="registro.observacion"
+          placeholder="Notas u observaciones"
+        ></textarea>
       </div>
 
-      <button type="submit" :disabled="guardando">
-        {{ guardando ? 'Guardando…' : 'Registrar Alimentación' }}
-      </button>
+      <div class="actions">
+        <button class="btn btn--accent btn--lg" type="submit" :disabled="guardando">
+          <span v-if="!guardando">Registrar Alimentación</span>
+          <span v-else>Guardando…</span>
+        </button>
+      </div>
     </form>
-  </div>
+  </section>
 </template>
 
 <script>
 import api from '@/services/axios';
 
 export default {
-  name: 'RegistroAlimentacion',
-  props: ['id'], // id de siembra desde la ruta
+  name: 'ProduccionAlimentarRegistro',
+  props: {
+    id: { type: [String, Number], required: true } // id de siembra desde la ruta
+  },
   data() {
     return {
-      // selección
-      productoSeleccionado: null,
-      loteSeleccionado: null,
+      siembraId: null,
 
-      // catálogos
-      productosAlimento: [],
-      lotes: [],
-
-      // ids auxiliares (por si rubro pasa a FK en el futuro)
-      idRubroAlimento: null,
-
-      // estados UI
+      // catálogo
+      rubros: [],
+      productos: [],
+      rubroAlimentoId: null,
       cargandoProductos: false,
-      cargandoLotes: false,
-      guardando: false,
 
-      // payload extra
+      // selección
+      productoSeleccionado: '',
+      lotes: [],
+      loteSeleccionado: '',
+      cargandoLotes: false,
+
+      // formulario
       registro: {
         kg: null,
         supervivencia: null,
         clima: '',
-        observacion: '',
+        observacion: ''
       },
-
-      // siembra
-      siembraId: null,
+      guardando: false
     };
   },
-
+  computed: {
+    productosAlimento() {
+      if (!this.rubroAlimentoId) return [];
+      return this.productos.filter(p => {
+        const rid = p.rubro_id ?? p.rubro ?? p.rubroId;
+        return Number(rid) === Number(this.rubroAlimentoId);
+      });
+    },
+    loteSeleccionadoObj() {
+      return this.lotes.find(l => l.id === this.loteSeleccionado);
+    }
+  },
   watch: {
-    // cuando cambia el producto, recarga lotes
-    productoSeleccionado(nuevo) {
-      this.loteSeleccionado = null;
+    productoSeleccionado(newVal) {
+      this.loteSeleccionado = '';
       this.lotes = [];
-      if (nuevo) this.cargarLotesDeProducto(nuevo);
-    },
+      if (newVal) this.cargarLotesDeProducto(newVal);
+    }
   },
-
-  mounted() {
-    this.siembraId = Number(this.id);
-    this.cargarRubrosYProductos();
-  },
-
   methods: {
-    // --- helpers robustos
-    getProductoId(p) {
-      return p?.id ?? p?.id_producto ?? null;
-    },
-    esRubroAlimento(valor) {
-      // soporta texto "Alimento" o id numérico (si mañana migras a FK)
-      if (valor != null && isNaN(valor)) {
-        return String(valor).trim().toLowerCase() === 'alimento';
-      }
-      return this.idRubroAlimento != null && Number(valor) === Number(this.idRubroAlimento);
-    },
-
-    // --- carga de catálogos
     async cargarRubrosYProductos() {
       this.cargandoProductos = true;
       try {
-        const [rubrosRes, productosRes] = await Promise.all([
+        const [rubrosRes, prodRes] = await Promise.all([
           api.get('/rubro/'),
-          api.get('/producto/'),
+          api.get('/producto/')
         ]);
 
-        // intenta detectar el id del rubro "Alimento" (por si luego es FK)
-        const rubros = Array.isArray(rubrosRes.data) ? rubrosRes.data : [];
-        this.idRubroAlimento =
-          rubros.find(r => (r?.nombre || '').trim().toLowerCase() === 'alimento')?.id ?? null;
-
-        // filtra productos que sean de rubro "Alimento"
-        const productos = Array.isArray(productosRes.data) ? productosRes.data : [];
-        this.productosAlimento = productos.filter(p =>
-          this.esRubroAlimento(p?.rubro ?? p?.rubro_id)
+        this.rubros = Array.isArray(rubrosRes.data) ? rubrosRes.data : [];
+        const rubroAli = this.rubros.find(
+          r => String(r.nombre || '').toLowerCase().trim() === 'alimento'
         );
+        this.rubroAlimentoId = rubroAli ? (rubroAli.id_rubro ?? rubroAli.id) : null;
+
+        this.productos = Array.isArray(prodRes.data) ? prodRes.data : [];
       } catch (e) {
         console.error('Error cargando rubros/productos:', e);
-        this.productosAlimento = [];
+        this.rubroAlimentoId = null;
+        this.productos = [];
       } finally {
         this.cargandoProductos = false;
       }
@@ -196,23 +207,22 @@ export default {
     async cargarLotesDeProducto(productoId) {
       this.cargandoLotes = true;
       try {
-        // Ajusta el nombre del parámetro si tu viewset usa otro (producto_id, etc.)
-        const { data } = await api.get('/entradaunitaria/', { params: { producto: productoId } });
+        // BACKEND: EntradaUnitariaViewSet acepta ?producto_id=
+        const { data } = await api.get('/entradaunitaria/', {
+          params: { producto_id: productoId }
+        });
         const filas = Array.isArray(data) ? data : [];
 
-        // Normaliza etiqueta para mostrar info útil
-        this.lotes = filas.map((eu) => {
-          const etiqueta = [
-            eu.lote ? `Lote: ${eu.lote}` : null,
-            eu.presentacion || null,
-            (typeof eu.stock !== 'undefined') ? `stock: ${eu.stock}` : null,
-          ].filter(Boolean).join(' · ') || `#${eu.id ?? eu.id_entradaunitaria ?? '—'}`;
-
-          return {
+        // Normaliza: id y etiqueta (lote)
+        const mapped = filas
+          .filter(eu => eu && eu.lote)
+          .map(eu => ({
             id: eu.id ?? eu.id_entradaunitaria ?? eu.pk,
-            etiqueta,
-          };
-        });
+            etiqueta: eu.lote
+          }));
+
+        // quita duplicados por id
+        this.lotes = [...new Map(mapped.map(x => [x.id, x])).values()];
       } catch (e) {
         console.error('Error cargando lotes:', e);
         this.lotes = [];
@@ -221,114 +231,73 @@ export default {
       }
     },
 
-    // --- enviar
     async submitForm() {
+      if (!this.productoSeleccionado) {
+        alert('Seleccione un alimento.');
+        return;
+      }
+      if (!this.loteSeleccionado) {
+        alert('Seleccione un lote.');
+        return;
+      }
+      if (this.registro.kg == null || this.registro.kg < 0) {
+        alert('Ingrese una cantidad (kg) válida.');
+        return;
+      }
+
+      this.guardando = true;
       try {
-        this.guardando = true;
-
-        if (!this.siembraId) {
-          alert('No se encontró el ciclo de siembra.');
-          return;
-        }
-        if (!this.productoSeleccionado) {
-          alert('Selecciona un alimento.');
-          return;
-        }
-        if (!this.loteSeleccionado) {
-          alert('Selecciona un lote.');
-          return;
-        }
-
         const payload = {
-          siembra: this.siembraId,
-          producto: this.productoSeleccionado, // id normalizado
-          lote: this.loteSeleccionado,        // id de entrada unitaria/lote
+          siembra: this.siembraId,                          // numérico
+          producto: Number(this.productoSeleccionado),      // id producto
+          lote_id: this.loteSeleccionado,                   // id de EntradaUnitaria (para trazabilidad)
+          lote: this.loteSeleccionadoObj?.etiqueta ?? '',   // texto del lote (compatibilidad)
           kg: this.registro.kg != null ? Number(this.registro.kg) : null,
-          supervivencia: this.registro.supervivencia != null ? Number(this.registro.supervivencia) : null,
-          clima: this.registro.clima ? String(this.registro.clima).trim() : '',
-          observacion: this.registro.observacion ? String(this.registro.observacion).trim() : '',
-          // estado: 1, // solo si tu modelo lo requiere explícitamente
+          supervivencia: this.registro.supervivencia != null
+            ? Number(this.registro.supervivencia) : null,
+          clima: this.registro.clima || '',
+          observacion: this.registro.observacion || ''
         };
 
         await api.post('/alimentar/', payload);
 
-        alert('¡Registro de alimentación guardado exitosamente!');
+        alert('¡Registro de alimentación guardado!');
         this.$router.push('/producción/alimentar');
-      } catch (error) {
-        console.error('Error al registrar alimentación:', error);
-        const msg = error?.response?.data?.detail || 'Ocurrió un error al guardar.';
+      } catch (e) {
+        console.error('Error al guardar alimentación:', e);
+        const msg = e?.response?.data?.detail || 'No fue posible guardar el registro.';
         alert(msg);
       } finally {
         this.guardando = false;
       }
-    },
+    }
   },
+  mounted() {
+    this.siembraId = Number(this.id);
+    this.cargarRubrosYProductos();
+  }
 };
 </script>
 
 <style scoped>
-.registro-siembra {
-  font-family: 'Poppins', sans-serif;
-  max-width: auto;
-  margin: 30px auto;
-  padding: 25px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease-in-out;
+.form { display: grid; gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.input, .select, .textarea {
+  width: 100%; padding: 10px 12px;
+  background: #f8f9fa; color: var(--color-text, #1f2937);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  font-size: 14px; transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
 }
-.registro-siembra:hover { box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.15); }
-
-h1 {
-  text-align: center;
-  color: #333;
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 20px;
+.input:focus, .select:focus, .textarea:focus {
+  outline: none; background: #fff;
+  box-shadow: 0 0 0 3px rgba(63,85,194,.2);
+  border-color: #3f55c2;
 }
-
-.form-group { margin-bottom: 20px; display: flex; flex-direction: column; }
-label { font-weight: 600; margin-bottom: 8px; color: #444; font-size: 14px; }
-
-input, select, textarea {
-  width: 100%;
-  padding: 12px;
-  box-sizing: border-box;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.3s ease-in-out;
-  background: #f8f9fa;
-}
-input:focus, select:focus, textarea:focus {
-  border-color: #28a745;
-  outline: none;
-  box-shadow: 0px 0px 5px rgba(40, 167, 69, 0.4);
-}
-.text-muted { color: #6b7280; font-size: 12px; margin-top: 4px; }
-
-button {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 12px 15px;
-  font-size: 16px;
-  cursor: pointer;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.3s ease-in-out;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-button:hover { background-color: #218838; transform: scale(1.05); }
-button:active { transform: scale(0.98); }
-
-@media (max-width: 768px) {
-  .registro-siembra { padding: 20px; }
-  h1 { font-size: 20px; }
-  button { font-size: 14px; padding: 10px; }
+.actions { margin-top: 6px; }
+.text-muted { color: #6b7280; }
+.btn--accent {
+  background: var(--color-accent, #7f1d1d);
+  color: #fff;
 }
 </style>
