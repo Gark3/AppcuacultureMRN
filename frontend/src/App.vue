@@ -1,5 +1,6 @@
 <template>
-  <div>
+  <!-- Activa tema granate IPN solo en este subtree -->
+  <div class="theme-ipn">
     <!-- Rutas de autenticación -->
     <div v-if="isAuthRoute">
       <router-view />
@@ -10,17 +11,25 @@
       <!-- Header superior -->
       <header class="header">
         <div class="header-left">
-          <button class="hamburger" @click="toggleMenu" aria-label="Toggle menu" :aria-expanded="isMenuOpen">☰</button>
+          <button
+            class="hamburger"
+            @click="toggleMenu"
+            aria-label="Abrir/cerrar menú"
+            :aria-expanded="isMenuOpen"
+            aria-controls="asideMenu"
+            title="Menú"
+          >☰</button>
+
           <img class="brand" src="@/assets/AppQuacultureLogo.png" alt="AppQuaculture" />
         </div>
 
-        <nav class="menu-buttons">
+        <nav class="menu-buttons" aria-label="Menú principal">
           <button
             v-for="item in visibleMenuItems"
             :key="item"
             @click="changeMenu(item)"
             :class="{ active: currentMenu === item }"
-            :title="`Cambia a la sección ${item}`"
+            :title="`Ir a ${item}`"
           >
             {{ item }}
           </button>
@@ -29,7 +38,12 @@
 
       <div class="main-container">
         <!-- Menú lateral -->
-        <aside class="side-menu" :class="{ 'open': isMenuOpen }">
+        <aside
+          id="asideMenu"
+          class="side-menu"
+          :class="{ 'open': isMenuOpen }"
+          aria-label="Submenú de sección"
+        >
           <div class="side-header">
             <span class="side-title">{{ currentMenu || 'Menú' }}</span>
             <button class="side-close" @click="closeMenu" aria-label="Cerrar menú">✕</button>
@@ -38,13 +52,14 @@
           <ul class="side-list" v-if="!loadingPerms">
             <!-- Submenú: Producción -->
             <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
-              <!-- NUEVO: Proyección hereda del permiso de 'agregar estanque' mediante alias -->
-              <!--li v-if="has('produccion_proyeccion')">
+              <!-- Proyección (alias de agregar estanque) -->
+              <!--
+              <li v-if="has('produccion_proyeccion')">
                 <router-link to="/produccion/proyeccion" class="side-menu-link" @click="onNavClick">Proyección</router-link>
-              </li-->
-
+              </li>
+              -->
               <li v-if="has('produccion_agregar_estanque')">
-                <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar Estanque</router-link>
+                <router-link to="/producción/agregar-estanque" class="side-menu-link" @click="onNavClick">Agregar estanque</router-link>
               </li>
               <li v-if="has('produccion_siembra')">
                 <router-link to="/producción/siembra" class="side-menu-link" @click="onNavClick">Siembra</router-link>
@@ -53,7 +68,7 @@
                 <router-link to="/producción/alimentar" class="side-menu-link" @click="onNavClick">Alimentar</router-link>
               </li>
               <li v-if="has('produccion_calidad_agua')">
-                <router-link to="/producción/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad AGUA</router-link>
+                <router-link to="/producción/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad de agua</router-link>
               </li>
               <li v-if="has('produccion_dieta')">
                 <router-link to="/producción/dieta" class="side-menu-link" @click="onNavClick">Dieta</router-link>
@@ -68,7 +83,7 @@
                 <router-link to="/producción/tratamientos" class="side-menu-link" @click="onNavClick">Tratamientos</router-link>
               </li>
               <li v-if="has('produccion_cuarentena')">
-                <router-link to="/producción/cuarentena" class="side-menu-link" @click="onNavClick">Proyección</router-link>
+                <router-link to="/producción/cuarentena" class="side-menu-link" @click="onNavClick">Cuarentena</router-link>
               </li>
             </template>
 
@@ -84,7 +99,7 @@
                 <router-link to="/reporte/gpc" class="side-menu-link" @click="onNavClick">GPC</router-link>
               </li>
               <li v-if="has('reporte_calidad_agua')">
-                <router-link to="/reporte/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad AGUA</router-link>
+                <router-link to="/reporte/calidad-agua" class="side-menu-link" @click="onNavClick">Calidad de agua</router-link>
               </li>
             </template>
 
@@ -97,10 +112,10 @@
                 <router-link to="/almacén/proveedores" class="side-menu-link" @click="onNavClick">Proveedores</router-link>
               </li>
               <li v-if="has('almacen_alta_material')">
-                <router-link to="/almacén/alta-material" class="side-menu-link" @click="onNavClick">Alta Material</router-link>
+                <router-link to="/almacén/alta-material" class="side-menu-link" @click="onNavClick">Alta de material</router-link>
               </li>
               <li v-if="has('almacen_alta_proveedores')">
-                <router-link to="/almacén/alta-proveedores" class="side-menu-link" @click="onNavClick">Alta Proveedores</router-link>
+                <router-link to="/almacén/alta-proveedores" class="side-menu-link" @click="onNavClick">Alta de proveedores</router-link>
               </li>
               <li v-if="has('almacen_entradas')">
                 <router-link to="/almacén/entradas" class="side-menu-link" @click="onNavClick">Entradas</router-link>
@@ -109,17 +124,17 @@
                 <router-link to="/almacén/salidas" class="side-menu-link" @click="onNavClick">Salidas</router-link>
               </li>
               <li v-if="has('almacen_inventario_fisico')">
-                <router-link to="/almacén/inventario-fisico" class="side-menu-link" @click="onNavClick">Inventario Físico</router-link>
+                <router-link to="/almacén/inventario-fisico" class="side-menu-link" @click="onNavClick">Inventario físico</router-link>
               </li>
             </template>
 
             <!-- Submenú: Estadístico -->
             <template v-else-if="currentMenu === 'Estadístico' && can('menu_estadistico')">
               <li v-if="has('estadistico_kolmogorov_smirnov')">
-                <router-link to="/estadístico/kolmogorov-smirnov" class="side-menu-link" @click="onNavClick">Kolmogorov-Smirnov</router-link>
+                <router-link to="/estadístico/kolmogorov-smirnov" class="side-menu-link" @click="onNavClick">Kolmogorov–Smirnov</router-link>
               </li>
               <li v-if="has('estadistico_shapiro_wilk')">
-                <router-link to="/estadístico/shapiro-wilk" class="side-menu-link" @click="onNavClick">Shapiro-Wilk</router-link>
+                <router-link to="/estadístico/shapiro-wilk" class="side-menu-link" @click="onNavClick">Shapiro–Wilk</router-link>
               </li>
               <li v-if="has('estadistico_anova')">
                 <router-link to="/estadístico/anova" class="side-menu-link" @click="onNavClick">ANOVA</router-link>
@@ -129,13 +144,13 @@
             <!-- Submenú: Contaduría -->
             <template v-else-if="currentMenu === 'Contaduría' && can('menu_contaduria')">
               <li v-if="has('contaduria_nomina')">
-                <router-link to="/contaduría/nomina" class="side-menu-link" @click="onNavClick">Nomina</router-link>
+                <router-link to="/contaduría/nomina" class="side-menu-link" @click="onNavClick">Nómina</router-link>
               </li>
               <li v-if="has('contaduria_sueldos')">
                 <router-link to="/contaduría/sueldos" class="side-menu-link" @click="onNavClick">Salarios</router-link>
               </li>
               <li v-if="has('contaduria_pagos_servicios')">
-                <router-link to="/contaduría/pagos-servicios" class="side-menu-link" @click="onNavClick">Pagos Servicios</router-link>
+                <router-link to="/contaduría/pagos-servicios" class="side-menu-link" @click="onNavClick">Pagos de servicios</router-link>
               </li>
               <li v-if="has('contaduria_compras')">
                 <router-link to="/contaduría/compras" class="side-menu-link" @click="onNavClick">Compras</router-link>
@@ -144,7 +159,7 @@
                 <router-link to="/contaduría/mantenimiento" class="side-menu-link" @click="onNavClick">Mantenimiento</router-link>
               </li>
               <li v-if="has('contaduria_costos_operativos')">
-                <router-link to="/contaduría/costos-operativos" class="side-menu-link" @click="onNavClick">Costos Operativos</router-link>
+                <router-link to="/contaduría/costos-operativos" class="side-menu-link" @click="onNavClick">Costos operativos</router-link>
               </li>
               <li v-if="has('contaduria_ventas')">
                 <router-link to="/contaduría/ventas" class="side-menu-link" @click="onNavClick">Ventas</router-link>
@@ -440,104 +455,25 @@ export default {
 };
 </script>
 
-<style>
-/* Base */
-:root { --header-h: 64px; }
-html, body, #app { height: 100%; }
-body {
-  font-family: "Poppins", sans-serif;
-  margin: 0; padding: 0;
-  background-color: #f8f9fa; color: #333;
-}
-.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+<style scoped>
+/* Solo ajustes mínimos específicos a este SFC.
+   El resto de estilos los provee appquaculture.css (v2). */
 
-/* Header superior */
-.header {
-  background-color: #007bff; color: white;
-  padding: 12px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  box-shadow: 0 4px 8px rgba(0,0,0,.08);
-  position: sticky; top: 0; z-index: 50;
-  min-height: var(--header-h);
-}
-.header-left { display: flex; align-items: center; gap: 12px; }
-.brand { width: 44px; height: 44px; object-fit: contain; }
-.hamburger {
-  background: #005fcc; color: #fff; border: none; border-radius: 8px;
-  font-size: 20px; padding: 8px 10px; cursor: pointer;
-  transition: background .2s ease, transform .1s ease;
-}
-.hamburger:hover { background: #004fa9; transform: translateY(-1px); }
-
-.menu-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
-.menu-buttons button {
-  background: transparent; border: none; color: white; font-weight: 600;
-  padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: background .2s ease;
-}
-.menu-buttons button:hover { background: rgba(255,255,255,.15); }
-.menu-buttons .active { background: #ffc107; color: #1f2937; }
-
-/* Contenedor principal */
-.main-container {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+/* Resalta el link activo del submenú usando clases de Vue Router */
+.side-menu-link.router-link-active,
+.side-menu-link.router-link-exact-active {
+  background: #495057;
+  font-weight: 700;
 }
 
-/* Aside lateral */
-.side-menu {
-  position: fixed;
-  top: var(--header-h);
-  left: 0; bottom: 0;
-  width: 260px;
-  background: #343a40; color: white;
-  transform: translateX(-100%); /* oculto */
-  transition: transform .25s ease;
-  z-index: 60;
-  overflow-y: auto;
-  box-shadow: 2px 0 8px rgba(0,0,0,.2);
-}
-.side-menu.open { transform: translateX(0); }
-
-/* Header del aside */
-.side-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; background: #2c3136; position: sticky; top: 0;
-}
-.side-title { font-weight: 600; }
-.side-close {
-  background: transparent; color: #e5e7eb; border: none; cursor: pointer;
-  font-size: 18px; border-radius: 6px;
-}
-.side-close:hover { background: rgba(255,255,255,.08); }
-
-/* Lista aside */
-.side-list { list-style: none; padding: 10px; margin: 0; }
-.side-empty { opacity: .8; padding: 8px 10px; }
-.side-menu-link {
-  display: block; color: white; text-decoration: none;
-  padding: 10px 12px; border-radius: 6px; transition: background .2s ease;
-  width: 100%; text-align: left;
-  background: transparent; border: none; cursor: pointer; /* para el botón logout */
-}
-.side-menu-link:hover { background: #495057; }
-
-/* Overlay (solo móvil/tablet) */
-.overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.4);
-  z-index: 55;
+/* Ajuste del logo del header (si necesitas) */
+.header .brand {
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.15));
 }
 
-/* Contenido */
-.content {
-  min-height: calc(100vh - var(--header-h));
-  padding: 20px; background: white;
-  width: 100%;
-  box-sizing: border-box;
-  transition: padding-left .25s ease;
-}
-/* En desktop el contenido se desplaza cuando el aside está abierto */
-@media (min-width: 1024px) {
-  .content.with-aside { padding-left: 260px; }
+/* En tema oscuro, matiza el activo del submenú */
+:deep(html.theme-dark) .side-menu-link.router-link-active,
+:deep(html.theme-dark) .side-menu-link.router-link-exact-active {
+  background: #3b4248;
 }
 </style>
