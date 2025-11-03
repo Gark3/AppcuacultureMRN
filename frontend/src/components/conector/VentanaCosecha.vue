@@ -1,314 +1,235 @@
 <template>
-  <section class="card">
-    <!-- Encabezado + buscador -->
-    <div class="card__header">
-      <h2 class="card__title">Siembras Activas</h2>
-      <p class="card__sub">Filtra y registra la <strong>cosecha</strong> de tus siembras activas.</p>
-    </div>
-
-    <div class="field">
-      <label for="busqueda">Buscar siembra</label>
-      <input
-        id="busqueda"
-        v-model="busqueda"
-        class="input"
-        type="text"
-        placeholder="Nombre, especie, estanque, etapa, etc."
-        @input="goToStart" 
-      />
-    </div>
-  </section>
-
-  <!-- Carrusel -->
-  <section class="carousel container" ref="carouselEl" @keydown.left.prevent="prev" @keydown.right.prevent="next" tabindex="0" aria-label="Carrusel de siembras">
-    <!-- Botón previo -->
-    <button
-      class="nav-btn nav-btn--prev"
-      type="button"
-      :disabled="!canPrev"
-      @click="prev"
-      aria-label="Anterior"
-      title="Anterior"
-    >
-      ‹
-    </button>
-
-    <!-- Ventana -->
+  <section
+    class="carousel container container--fluid"
+    :class="{ 'carousel--compact': totalSlides <= visible }"
+    ref="carouselEl"
+    @keydown.left.prevent="prev"
+    @keydown.right.prevent="next"
+    tabindex="0"
+  >
+    <!-- Pista -->
     <div class="viewport">
       <div
         class="track"
-        :style="trackStyle"
-        role="list"
-        aria-live="polite"
+        :style="{
+          transform: `translateX(-${translatePercent}%)`,
+          gap: gapPx + 'px'
+        }"
       >
-        <article
-          v-for="siembra in siembrasFiltradas"
-          :key="siembra.id_siembra"
-          class="card slide"
+        <div
+          v-for="(s, i) in siembrasFiltradas"
+          :key="s.id_siembra || i"
+          class="slide"
           :style="slideStyle"
-          role="listitem"
         >
-          <div class="card__header">
-            <h3 class="card__title">{{ siembra.estanque_nombre || '—' }}</h3>
-            <p class="card__sub">
-              <strong>Especie:</strong> {{ siembra.especie || '—' }} ·
-              <strong>Etapa:</strong> {{ siembra.etapa || '—' }}
-            </p>
-          </div>
+          <!-- Tarjeta (tu card original) -->
+          <article class="card card--fill">
+            <div class="card__header">
+              <h3 class="card__title">{{ s.estanque_nombre || '—' }}</h3>
+              <p class="card__sub">
+                <strong>Especie:</strong> {{ s.especie || '—' }} ·
+                <strong>Etapa:</strong> {{ s.etapa || '—' }}
+              </p>
+            </div>
 
-          <div class="meta">
-            <p><strong>Superficie:</strong> {{ siembra.estanque_superficie ?? '—' }} m²</p>
-            <p><strong>Profundidad:</strong> {{ siembra.estanque_profundidad ?? '—' }} m</p>
-            <p><strong>Infraestructura:</strong> {{ siembra.estanque_infraestructura || '—' }}</p>
-            <p><strong>Ubicación:</strong> {{ siembra.estanque_ubicacion || '—' }}</p>
-            <p><strong>Fecha de Siembra:</strong> {{ siembra.fecha || '—' }}</p>
-          </div>
+            <div class="meta">
+              <p><strong>Superficie:</strong> {{ s.estanque_superficie ?? '—' }} m²</p>
+              <p><strong>Profundidad:</strong> {{ s.estanque_profundidad ?? '—' }} m</p>
+              <p><strong>Infraestructura:</strong> {{ s.estanque_infraestructura || '—' }}</p>
+              <p class="ellipsis"><strong>Ubicación:</strong> {{ s.estanque_ubicacion || '—' }}</p>
+              <p><strong>Fecha de Siembra:</strong> {{ s.fecha || '—' }}</p>
+            </div>
 
-          <div class="mt-3">
-            <button
-              class="btn btn--primary btn--lg"
-              @click="registrarCosecha(siembra.id_siembra)"
-              title="Registrar Cosecha"
-            >
-              Registrar Cosecha
-            </button>
-          </div>
-        </article>
+            <div class="mt-auto">
+              <button
+                class="btn btn--accent btn--lg w-100"
+                @click="$emit('registrar', s.id_siembra)"
+              >
+                Registrar Cosecha
+              </button>
+            </div>
+          </article>
+        </div>
       </div>
-    </div>
 
-    <!-- Botón siguiente -->
-    <button
-      class="nav-btn nav-btn--next"
-      type="button"
-      :disabled="!canNext"
-      @click="next"
-      aria-label="Siguiente"
-      title="Siguiente"
-    >
-      ›
-    </button>
-
-    <!-- Indicadores -->
-    <div v-if="totalSlides > 0 && perView < totalSlides" class="dots">
+      <!-- Flechas (solo si hay más ítems que visibles) -->
       <button
-        v-for="i in pageCount"
-        :key="i"
-        class="dot"
-        :class="{ active: currentPage === (i-1) }"
-        @click="goToPage(i-1)"
-        :aria-label="`Ir a grupo ${i}`"
+        v-if="totalSlides > visible"
+        class="nav-btn nav-btn--prev"
         type="button"
-      />
+        :disabled="!canPrev"
+        @click="prev"
+        aria-label="Anterior"
+      >‹</button>
+
+      <button
+        v-if="totalSlides > visible"
+        class="nav-btn nav-btn--next"
+        type="button"
+        :disabled="!canNext"
+        @click="next"
+        aria-label="Siguiente"
+      >›</button>
     </div>
 
-    <!-- Vacío -->
-    <div v-if="totalSlides === 0" class="empty">
-      No hay siembras activas que coincidan con tu búsqueda.
+    <!-- Dots -->
+    <div v-if="totalSlides > visible" class="dots">
+      <button
+        v-for="(pg, idx) in pageCount"
+        :key="idx"
+        type="button"
+        class="dot"
+        :class="{ active: pageIndex === idx }"
+        @click="goToPage(idx)"
+        :aria-label="`Ir a grupo ${idx + 1}`"
+      />
     </div>
   </section>
 </template>
 
 <script>
-import axios from '@/services/axios';
-
 export default {
-  name: 'SiembrasActivasCosechaCarrusel',
+  name: 'CarruselSiembras',
+  props: {
+    siembrasFiltradas: { type: Array, required: true },
+    gap: { type: Number, default: 16 },           // separación entre slides (px)
+    perViewDesktop: { type: Number, default: 3 }, // >=1024px
+    perViewTablet: { type: Number, default: 2 },  // 640–1023px
+    perViewMobile: { type: Number, default: 1 }   // <640px
+  },
   data() {
     return {
-      siembras: [],
-      busqueda: '',
-      // carrusel
-      index: 0,         // índice del primer slide visible
-      perView: 3,       // slides visibles (se recalcula por ancho)
-      gapPx: 16,        // separación entre tarjetas (coincide con CSS)
-      resizeObs: null
+      index: 0,
+      vw: typeof window !== 'undefined' ? window.innerWidth : 1280
     };
   },
   computed: {
-    siembrasFiltradas() {
-      const filtro = this.busqueda.trim().toLowerCase();
-      if (!filtro) return this.siembras;
-      return this.siembras.filter(siembra =>
-        Object.values(siembra).some(valor =>
-          String(valor ?? '').toLowerCase().includes(filtro)
-        )
-      );
+    totalSlides() { return this.siembrasFiltradas?.length || 0; },
+    visible() {
+      if (this.vw < 640) return this.perViewMobile;
+      if (this.vw < 1024) return this.perViewTablet;
+      return this.perViewDesktop;
     },
-    totalSlides() {
-      return this.siembrasFiltradas.length;
-    },
+    // cuántas “páginas” hay si avanzamos de 1 en 1
     maxIndex() {
-      // último índice inicial permitido para que aún se vean perView items
-      return Math.max(0, this.totalSlides - this.perView);
+      return Math.max(0, this.totalSlides - this.visible);
     },
     canPrev() { return this.index > 0; },
     canNext() { return this.index < this.maxIndex; },
-    currentPage() {
-      // página basada en pasos de 1 con perView visible
-      return Math.floor(this.index / 1);
-    },
-    pageCount() {
-      // número de "posiciones" válidas (índices iniciales posibles)
-      return this.maxIndex + 1;
-    },
-    trackStyle() {
-      // Cada slide ocupa 100/perView %, el desplazamiento es index * (100/perView) %
-      const translatePct = (this.index * (100 / this.perView)) * -1;
-      return {
-        transform: `translateX(${translatePct}%)`
-      };
-    },
+    pageIndex() { return Math.floor(this.index); },
+    pageCount() { return Math.max(1, this.totalSlides - this.visible + 1); },
+    gapPx() { return this.gap; },
+    // ancho exacto de cada slide: reparte 100% restando los gaps internos
     slideStyle() {
-      // Cada tarjeta ocupa exactamente 100/perView% del ancho de la viewport
+      const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
+      // total gap por “fila” = gap * (v - 1)
+      // ancho disponible = 100% - esos gaps
       return {
-        flex: `0 0 calc(100% / ${this.perView})`,
-        maxWidth: `calc(100% / ${this.perView})`
+        flex: `0 0 calc((100% - ${this.gapPx * (v - 1)}px) / ${v})`,
+        maxWidth: `calc((100% - ${this.gapPx * (v - 1)}px) / ${v})`
       };
+    },
+    // porcentaje a desplazar por avance de 1 tarjeta
+    translatePercent() {
+      const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
+      return (this.index * 100) / v;
     }
   },
   methods: {
-    async obtenerSiembras() {
-      try {
-        const user = JSON.parse(localStorage.getItem('user'));
-        const [siembrasRes, estanquesRes] = await Promise.all([
-          axios.get('/siembra/'),
-          axios.get('/estanque/')
-        ]);
-        const estanques = estanquesRes.data || [];
-
-        this.siembras = (siembrasRes.data || [])
-          .filter(s => s.estado === 1 && s.acuicola === user?.acuicola)
-          .map(s => {
-            const estanque = estanques.find(e => e.id_estanque === s.estanque) || {};
-            return {
-              ...s,
-              estanque_nombre: estanque.nombre || '',
-              estanque_superficie: estanque.superficie ?? '',
-              estanque_profundidad: estanque.profundidad ?? '',
-              estanque_infraestructura: estanque.infraestructura || '',
-              estanque_ubicacion: estanque.ubicacion || ''
-            };
-          });
-
-        // al cargar datos, reseteamos al inicio
-        this.index = 0;
-      } catch (error) {
-        console.error('Error al obtener siembras o estanques:', error);
-      }
-    },
-    registrarCosecha(id) {
-      this.$router.push(`/producción/cosecha/registro/${id}`);
-    },
-    // Carrusel
     prev() { if (this.canPrev) this.index -= 1; },
     next() { if (this.canNext) this.index += 1; },
-    goToStart() { this.index = 0; },
     goToPage(p) {
-      this.index = Math.min(Math.max(p, 0), this.maxIndex);
-    },
-    computePerView() {
-      const w = window.innerWidth;
-      // 1 móvil, 2 tablet, 3 escritorio
-      this.perView = w < 640 ? 1 : (w < 1024 ? 2 : 3);
-      // al cambiar perView, aseguramos no exceder
-      this.index = Math.min(this.index, this.maxIndex);
+      // posiciona para que el primer slide visible sea p
+      this.index = Math.max(0, Math.min(p, this.maxIndex));
     },
     onResize() {
-      this.computePerView();
+      this.vw = window.innerWidth;
+      // corrige índice si el visible cambió y quedó fuera de rango
+      if (this.index > this.maxIndex) this.index = this.maxIndex;
     }
   },
   mounted() {
-    this.obtenerSiembras();
-    this.computePerView();
-    // Observa cambios de tamaño para recalcular perView
-    this.resizeObs = new ResizeObserver(this.onResize);
-    this.resizeObs.observe(document.documentElement);
+    this.onResize();
+    window.addEventListener('resize', this.onResize, { passive: true });
   },
   beforeUnmount() {
-    if (this.resizeObs) this.resizeObs.disconnect();
+    window.removeEventListener('resize', this.onResize);
   }
 };
 </script>
 
 <style scoped>
-/* ====== Carrusel ====== */
-.carousel {
-  position: relative;
-  padding: 0 40px; /* espacio para flechas */
-  outline: none; /* para el focus por teclado */
-}
+/* Que el carrusel pueda ocupar el 100% horizontal */
+.container.container--fluid { max-width: 100% !important; }
 
+/* Estructura */
+.carousel { outline: none; }
 .viewport {
-  overflow: hidden;
+  position: relative;
   width: 100%;
-  border: 1px solid var(--color-border, #e5e7eb);
+  overflow: hidden;              /* oculta desbordes laterales */
   border-radius: var(--radius-lg, 14px);
   background: var(--color-surface, #fff);
   box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.10));
 }
-
 .track {
   display: flex;
-  transition: transform .35s ease;
+  width: 100%;
   will-change: transform;
-  gap: 16px; /* ¡IMPORTANTE! Debe coincidir con gapPx si vas a calcular con px */
-  padding: 16px;
+  transition: transform .28s ease;
+  padding: 20px;                 /* respiro interior */
+  box-sizing: border-box;
 }
 
-.slide {
-  /* anchura se fija dinámicamente con slideStyle (flex-basis/max-width) */
+/* Cada slide ocupa exactamente su porción calculada */
+.slide { display: flex; }
+
+/* Tarjeta: misma altura para que nada “salte” */
+.card--fill {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  height: 100%;
+  width: 100%;
 }
-
-.meta p { margin: 6px 0; font-size: 0.95rem; }
+.meta p { margin: 6px 0; font-size: .95rem; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-auto { margin-top: auto; }
+.w-100 { width: 100%; }
 
 /* Flechas */
 .nav-btn {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px; height: 36px;
-  border: none; border-radius: 50%;
-  background: rgba(0,0,0,.25);
-  color: #fff; font-size: 22px; line-height: 1;
+  border: none;
+  width: 40px; height: 40px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.35);
+  color: #fff; font-size: 22px;
   display: grid; place-items: center;
   cursor: pointer;
-  transition: background .2s ease, transform .1s ease;
-  z-index: 2;
 }
-.nav-btn:hover { background: rgba(0,0,0,.35); transform: translateY(-50%) scale(1.03); }
-.nav-btn:disabled { opacity: .35; cursor: not-allowed; }
-.nav-btn--prev { left: 4px; }
-.nav-btn--next { right: 4px; }
+.nav-btn--prev { left: 10px; }
+.nav-btn--next { right: 10px; }
+.nav-btn:disabled { opacity: .35; cursor: default; }
 
 /* Dots */
 .dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
+  display: flex; justify-content: center; gap: 10px;
+  padding: 10px 0 14px;
 }
 .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #cbd5e1; border: none; cursor: pointer;
+  width: 9px; height: 9px; border-radius: 999px;
+  background: #c7c7c7; border: none; cursor: pointer;
 }
 .dot.active { background: #8d2a2a; }
 
-/* Vacío */
-.empty {
-  text-align: center;
-  color: var(--color-muted, #6b7280);
-  margin-top: 12px;
-}
+/* Centrar cuando hay 1–2 tarjetas y no se necesitan flechas */
+.carousel--compact .track { justify-content: center; }
 
-/* Responsivo (coincide con computePerView) */
-@media (max-width: 1023px) {
-  .carousel { padding: 0 36px; }
-}
-@media (max-width: 639px) {
-  .carousel { padding: 0 30px; }
+/* Responsivo: 1 por 1 en móvil ya controlado por visible, aquí afinamos UI */
+@media (max-width: 640px) {
+  .track { padding: 14px; }
+  .nav-btn { width: 36px; height: 36px; font-size: 20px; }
 }
 </style>
