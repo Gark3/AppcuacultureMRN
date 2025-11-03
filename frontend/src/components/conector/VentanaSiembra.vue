@@ -18,43 +18,89 @@
     </div>
   </section>
 
-  <!-- Grilla de tarjetas con estanques disponibles -->
-  <section class="container">
-    <div class="list-grid">
-      <article
-        v-for="estanque in estanquesFiltrados"
-        :key="getIdEstanque(estanque)"
-        class="card"
+  <!-- Carrusel -->
+  <section class="container container--fluid">
+    <div class="carousel">
+      <!-- Prev -->
+      <button
+        v-if="showNav"
+        class="nav-btn nav-btn--prev"
+        :disabled="!canPrev"
+        @click="prev"
+        aria-label="Anterior"
+      >‹</button>
+
+      <!-- Viewport -->
+      <div
+        class="viewport"
+        ref="viewport"
+        :style="{'--slides': slides, '--gap': gap + 'px'}"
+        @scroll.passive="onScroll"
       >
-        <div class="card__header">
-          <h3 class="card__title">{{ estanque.nombre || '—' }}</h3>
-          <p class="card__sub">
-            <strong>Superficie:</strong> {{ estanque.superficie ?? '—' }} m² ·
-            <strong>Profundidad:</strong> {{ estanque.profundidad ?? '—' }} m
-          </p>
-        </div>
-
-        <div class="meta">
-          <p><strong>Infraestructura:</strong> {{ estanque.infraestructura || '—' }}</p>
-          <p><strong>Ubicación:</strong> {{ estanque.ubicacion || '—' }}</p>
-        </div>
-
-        <div class="mt-3">
-          <button
-            class="btn btn--accent btn--lg"
-            @click="irAFormularioSiembra(getIdEstanque(estanque))"
-            title="Usar este estanque para siembra"
+        <div
+          class="track"
+          ref="track"
+          :class="{ 'track--center': total <= visible }"
+        >
+          <article
+            v-for="(estanque, i) in estanquesFiltrados"
+            :key="getIdEstanque(estanque) ?? i"
+            class="card slide"
           >
-            Utilizar Estanque
-          </button>
+            <div class="card__header">
+              <h3 class="card__title">{{ estanque.nombre || '—' }}</h3>
+              <p class="card__sub">
+                <strong>Superficie:</strong> {{ estanque.superficie ?? '—' }} m² ·
+                <strong>Profundidad:</strong> {{ estanque.profundidad ?? '—' }} m
+              </p>
+            </div>
+
+            <div class="meta">
+              <p><strong>Infraestructura:</strong> {{ estanque.infraestructura || '—' }}</p>
+              <p><strong>Ubicación:</strong> {{ estanque.ubicacion || '—' }}</p>
+            </div>
+
+            <div class="mt-2">
+              <button
+                class="btn btn--accent btn--lg slide__btn"
+                @click="irAFormularioSiembra(getIdEstanque(estanque))"
+                title="Usar este estanque para siembra"
+              >
+                Utilizar Estanque
+              </button>
+            </div>
+          </article>
         </div>
-      </article>
+      </div>
+
+      <!-- Next -->
+      <button
+        v-if="showNav"
+        class="nav-btn nav-btn--next"
+        :disabled="!canNext"
+        @click="next"
+        aria-label="Siguiente"
+      >›</button>
     </div>
 
+    <!-- Dots -->
+    <div v-if="pages > 1" class="dots">
+      <button
+        v-for="n in pages"
+        :key="n"
+        class="dot"
+        :class="{ active: currentIndex === (n-1) }"
+        @click="goTo(n-1)"
+        :aria-label="`Ir al slide ${n}`"
+      />
+    </div>
+
+    <!-- Mensajes -->
     <p v-if="cargando" class="text-muted mt-3">Cargando estanques…</p>
     <p v-else-if="!estanquesFiltrados.length" class="text-muted mt-3">
       No hay estanques disponibles para siembra.
     </p>
+    <p v-else-if="error" class="text-muted mt-3">{{ error }}</p>
   </section>
 </template>
 
@@ -69,6 +115,10 @@ export default {
       busqueda: '',
       cargando: false,
       error: null,
+      // Carrusel
+      slides: 3,   // 3/2/1 (desktop/tablet/móvil)
+      gap: 16,
+      currentIndex: 0,
     };
   },
   computed: {
@@ -82,6 +132,12 @@ export default {
           .some((v) => String(v).toLowerCase().includes(filtro))
       );
     },
+    total() { return this.estanquesFiltrados.length; },
+    visible() { return this.slides; },
+    pages() { return Math.max(1, this.total - this.visible + 1); }, // avanza de 1 en 1
+    canPrev() { return this.currentIndex > 0; },
+    canNext() { return this.currentIndex < this.pages - 1; },
+    showNav() { return this.total > this.visible; },
   },
   methods: {
     // ---------- Normalizadores de ids ----------
@@ -158,6 +214,12 @@ export default {
           const idE = this.getIdEstanque(e);
           return idE != null && !ocupados.has(idE);
         });
+
+        // reajusta índice si cambió el total visible
+        if (this.currentIndex > this.pages - 1) {
+          this.currentIndex = Math.max(0, this.pages - 1);
+        }
+        this.$nextTick(this.scrollToIndex);
       } catch (error) {
         console.error('Error al obtener estanques:', error);
         this.error = 'No se pudo cargar la lista de estanques.';
@@ -168,25 +230,128 @@ export default {
     },
 
     irAFormularioSiembra(estanqueId) {
-      // Si tu router no usa acento, cambia a /produccion/...
       this.$router.push(`/producción/siembra/registro/${estanqueId}`);
+    },
+
+    // ---------- Carrusel ----------
+    slideWidth() {
+      const track = this.$refs.track;
+      if (!track || !track.firstElementChild) return 0;
+      const slide = track.firstElementChild;
+      const rect = slide.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '0');
+      return rect.width + gap;
+    },
+    scrollToIndex() {
+      const vp = this.$refs.viewport;
+      if (!vp) return;
+      const x = this.currentIndex * this.slideWidth();
+      vp.scrollTo({ left: x, behavior: 'smooth' });
+    },
+    prev() {
+      if (!this.canPrev) return;
+      this.currentIndex -= 1;
+      this.scrollToIndex();
+    },
+    next() {
+      if (!this.canNext) return;
+      this.currentIndex += 1;
+      this.scrollToIndex();
+    },
+    goTo(idx) {
+      this.currentIndex = Math.min(Math.max(0, idx), this.pages - 1);
+      this.scrollToIndex();
+    },
+    onScroll() {
+      const vp = this.$refs.viewport;
+      if (!vp) return;
+      const w = this.slideWidth();
+      if (w > 0) this.currentIndex = Math.round(vp.scrollLeft / w);
+    },
+    setSlidesByViewport() {
+      const w = window.innerWidth;
+      this.slides = w >= 1024 ? 3 : w >= 700 ? 2 : 1;
+      this.$nextTick(this.scrollToIndex);
     },
   },
 
   mounted() {
     this.obtenerEstanques();
+    this.setSlidesByViewport();
+    window.addEventListener('resize', this.setSlidesByViewport);
+  },
+  beforeUnmount() {
+    window.removeEventListener('resize', this.setSlidesByViewport);
   },
 };
 </script>
 
 <style scoped>
-.list-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+/* contenedor fluido */
+.container--fluid { max-width: 1400px; }
+
+/* carrusel */
+.carousel {
+  position: relative;
+  width: 100%;
+  margin-top: 10px;
 }
-.meta p {
-  margin: 6px 0;
-  font-size: 0.95rem;
+
+.viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  scroll-behavior: smooth;
 }
+.viewport::-webkit-scrollbar { height: 8px; }
+.viewport::-webkit-scrollbar-thumb { background: transparent; }
+
+.track {
+  display: flex;
+  gap: var(--gap);
+  align-items: stretch;
+  scroll-behavior: smooth;
+}
+.track--center { justify-content: center; }
+
+/* cada slide ocupa 1/N del ancho visible */
+.slide {
+  flex: 0 0 calc((100% - (var(--gap) * (var(--slides) - 1))) / var(--slides));
+  min-width: calc((100% - (var(--gap) * (var(--slides) - 1))) / var(--slides));
+}
+
+/* evitar que el botón herede width: 100% */
+.slide__btn { width: auto !important; display: inline-flex; }
+
+/* navegación */
+.nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  width: 36px;
+  height: 48px;
+  border-radius: 10px;
+  cursor: pointer;
+  z-index: 5;
+}
+.nav-btn:hover { background: rgba(0,0,0,.5); }
+.nav-btn:disabled { opacity: .4; cursor: default; }
+.nav-btn--prev { left: -6px; }
+.nav-btn--next { right: -6px; }
+
+/* dots */
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #d1d5db; border: none; cursor: pointer; }
+.dot.active { background: #7f1d1d; }
+
+/* contenido */
+.meta p { margin: 6px 0; }
 </style>
