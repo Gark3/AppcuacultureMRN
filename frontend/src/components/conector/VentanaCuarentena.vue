@@ -57,17 +57,13 @@
           </thead>
           <tbody>
             <tr v-for="(row, i) in rows" :key="i">
-              <!-- Semana -->
               <td class="cell-sticky left">{{ i + 1 }}</td>
-
-              <!-- Fecha -->
               <td>{{ semanaFecha(i) }}</td>
 
               <!-- % alimento (manual) -->
               <td>
                 <div class="cell-edit">
-                  <input class="input input-cell" type="number" min="0" step="0.01"
-                         v-model.number="row.feed_pct" />
+                  <input class="input input-cell" type="number" min="0" step="0.01" v-model.number="row.feed_pct" />
                   <span class="unit">%</span>
                 </div>
               </td>
@@ -75,21 +71,31 @@
               <!-- Supervivencia (no creciente) -->
               <td>
                 <div class="cell-edit">
-                  <input class="input input-cell" type="number" min="0" max="100"
-                         :value="row.superv_acum_pct"
-                         @input="onSurvInput(i, $event.target.value)"
-                         @blur="onSurvBlur(i)" />
+                  <input
+                    class="input input-cell"
+                    type="number"
+                    min="0"
+                    max="100"
+                    :value="row.superv_acum_pct"
+                    @input="onSurvInput(i, $event.target.value)"
+                    @blur="onSurvBlur(i)"
+                  />
                   <span class="unit">%</span>
                 </div>
               </td>
 
-              <!-- Talla (autorrelleno con semana previa, editable libre) -->
+              <!-- Talla -->
               <td>
                 <div class="cell-edit">
-                  <input class="input input-cell" type="number" min="0" step="0.01"
-                         :value="row.talla_g"
-                         @input="onTallaInput(i, $event.target.value)"
-                         @blur="onTallaBlur(i)" />
+                  <input
+                    class="input input-cell"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    :value="row.talla_g"
+                    @input="onTallaInput(i, $event.target.value)"
+                    @blur="onTallaBlur(i)"
+                  />
                   <span class="unit">g</span>
                 </div>
               </td>
@@ -129,10 +135,15 @@
           <div class="field">
             <label>% Superv (acum)</label>
             <div class="cell-edit">
-              <input class="input" type="number" min="0" max="100"
-                     :value="row.superv_acum_pct"
-                     @input="onSurvInput(i, $event.target.value)"
-                     @blur="onSurvBlur(i)" />
+              <input
+                class="input"
+                type="number"
+                min="0"
+                max="100"
+                :value="row.superv_acum_pct"
+                @input="onSurvInput(i, $event.target.value)"
+                @blur="onSurvBlur(i)"
+              />
               <span class="unit">%</span>
             </div>
           </div>
@@ -140,10 +151,15 @@
           <div class="field">
             <label>Talla (g)</label>
             <div class="cell-edit">
-              <input class="input" type="number" min="0" step="0.01"
-                     :value="row.talla_g"
-                     @input="onTallaInput(i, $event.target.value)"
-                     @blur="onTallaBlur(i)" />
+              <input
+                class="input"
+                type="number"
+                min="0"
+                step="0.01"
+                :value="row.talla_g"
+                @input="onTallaInput(i, $event.target.value)"
+                @blur="onTallaBlur(i)"
+              />
               <span class="unit">g</span>
             </div>
           </div>
@@ -191,122 +207,122 @@ export default {
       org_iniciales: props.siembra.organismos,
       area_m2: props.siembra.area_m2,
       volumen_m3: props.siembra.volumen_m3,
-      peso_inicial_g: props.pesoInicialDefault, // NUEVO
+      peso_inicial_g: props.pesoInicialDefault,
     });
 
     const rows = ref([]);
     const makeRow = () => ({
-      feed_pct: 0,           // manual
-      superv_acum_pct: 100,  // se clampéa para no subir
-      talla_g: state.peso_inicial_g, // auto-carry desde semana anterior
+      feed_pct: 0,
+      superv_acum_pct: 100,
+      talla_g: state.peso_inicial_g,
       touchedSurv: false,
       touchedTalla: false,
     });
 
-    const resizeRows = () => {
-      const n = Math.max(1, Math.min(60, Number(state.semanas) || 1));
-      while (rows.value.length < n) rows.value.push(makeRow());
-      while (rows.value.length > n) rows.value.pop();
-      // aseguremos carry
-      for (let i=1;i<rows.value.length;i++) {
-        if (!rows.value[i].touchedTalla) rows.value[i].talla_g = rows.value[i-1].talla_g;
-        if (!rows.value[i].touchedSurv)  rows.value[i].superv_acum_pct = Math.min(rows.value[i-1].superv_acum_pct, rows.value[i].superv_acum_pct);
-      }
-      // clamp cadena
-      clampSurvivalChain(0);
-    };
-    resizeRows();
-
-    // ===== Reglas de captura =====
-    const prevSurv = (i) => (i===0 ? 100 : effectiveSurv(i-1));
+    // ==== helpers supervivencia (definidos ANTES de usarlos) ====
+    const prevSurv  = (i) => (i === 0 ? 100 : effectiveSurv(i - 1));
     const effectiveSurv = (i) => Math.min(rows.value[i].superv_acum_pct, prevSurv(i));
-    const onSurvInput = (i, val) => {
-      const num = Math.max(0, Math.min(100, Number(val) || 0));
-      // clamp contra semana anterior
-      rows.value[i].superv_acum_pct = Math.min(num, prevSurv(i));
-      rows.value[i].touchedSurv = true;
-      // Propaga hacia delante para no violar la regla
-      clampSurvivalChain(i+1);
-    };
-    const onSurvBlur = (i) => {
-      // si la siguiente no ha sido tocada, autollenar igual a esta
-      if (rows.value[i+1] && !rows.value[i+1].touchedSurv) {
-        rows.value[i+1].superv_acum_pct = rows.value[i].superv_acum_pct;
-      }
-    };
-    function clampSurvivalChain(startIdx){
-      for (let j=startIdx;j<rows.value.length;j++){
+
+    function clampSurvivalChain(startIdx) {
+      for (let j = startIdx; j < rows.value.length; j++) {
         const allowed = prevSurv(j);
-        if (rows.value[j].superv_acum_pct > allowed){
+        if (rows.value[j].superv_acum_pct > allowed) {
           rows.value[j].superv_acum_pct = allowed;
         }
       }
     }
 
+    const onSurvInput = (i, val) => {
+      const num = Math.max(0, Math.min(100, Number(val) || 0));
+      rows.value[i].superv_acum_pct = Math.min(num, prevSurv(i));
+      rows.value[i].touchedSurv = true;
+      clampSurvivalChain(i + 1);
+    };
+    const onSurvBlur = (i) => {
+      if (rows.value[i + 1] && !rows.value[i + 1].touchedSurv) {
+        rows.value[i + 1].superv_acum_pct = rows.value[i].superv_acum_pct;
+      }
+    };
+
+    // ==== talla ====
     const onTallaInput = (i, val) => {
       const num = Math.max(0, Number(val) || 0);
       rows.value[i].talla_g = num;
       rows.value[i].touchedTalla = true;
-      // Autorrelleno hacia delante si no han tocado
-      if (rows.value[i+1] && !rows.value[i+1].touchedTalla) {
-        rows.value[i+1].talla_g = rows.value[i].talla_g;
+      if (rows.value[i + 1] && !rows.value[i + 1].touchedTalla) {
+        rows.value[i + 1].talla_g = rows.value[i].talla_g;
       }
     };
-    const onTallaBlur = (_i) => {};
+    const onTallaBlur = () => {};
 
-    // ===== Fechas =====
+    // ==== filas ====
+    const resizeRows = () => {
+      const n = Math.max(1, Math.min(60, Number(state.semanas) || 1));
+      while (rows.value.length < n) rows.value.push(makeRow());
+      while (rows.value.length > n) rows.value.pop();
+      // carry de valores por defecto
+      for (let i = 1; i < rows.value.length; i++) {
+        if (!rows.value[i].touchedTalla) rows.value[i].talla_g = rows.value[i - 1].talla_g;
+        if (!rows.value[i].touchedSurv)
+          rows.value[i].superv_acum_pct = Math.min(rows.value[i - 1].superv_acum_pct, rows.value[i].superv_acum_pct);
+      }
+      clampSurvivalChain(0);
+    };
+    // Inicializa ahora que ya existen todas las funciones usadas:
+    resizeRows();
+
+    // ==== fechas ====
     const semanaFecha = (i) => {
+      if (!state.fecha_inicio) return "";
       const d = new Date(state.fecha_inicio);
       if (isNaN(d)) return "";
-      const nd = new Date(d.getTime() + i*7*24*60*60*1000);
-      return nd.toISOString().slice(0,10);
+      const nd = new Date(d.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+      return nd.toISOString().slice(0, 10);
     };
 
-    // ===== Cálculos base =====
-    const orgVivos = (i) => Math.max(0, Math.round(state.org_iniciales * (effectiveSurv(i)/100)));
-    const orgPorM2 = (i) => state.area_m2 ? orgVivos(i) / state.area_m2 : 0;
-    const tallaPrev = (i) => (i===0 ? state.peso_inicial_g : rows.value[i-1].talla_g);
-    const survPrev  = (i) => (i===0 ? 100 : effectiveSurv(i-1));
+    // ==== cálculos ====
+    const orgVivos = (i) => Math.max(0, Math.round(state.org_iniciales * (effectiveSurv(i) / 100)));
+    const orgPorM2 = (i) => (state.area_m2 ? orgVivos(i) / state.area_m2 : 0);
+    const tallaPrev = (i) => (i === 0 ? state.peso_inicial_g : rows.value[i - 1].talla_g);
+    const survPrev  = (i) => (i === 0 ? 100 : effectiveSurv(i - 1));
 
     const biomasaG = (i) => orgVivos(i) * rows.value[i].talla_g;
     const biomasaPrevG = (i) => {
-      const orgPrev = Math.max(0, Math.round(state.org_iniciales * (survPrev(i)/100)));
-      const tPrev = tallaPrev(i);
-      return orgPrev * tPrev;
+      const orgPrev = Math.max(0, Math.round(state.org_iniciales * (survPrev(i) / 100)));
+      return orgPrev * tallaPrev(i);
     };
 
     const crecSemanal = (i) => rows.value[i].talla_g - tallaPrev(i);
-
-    // Alimento: % por biomasa * 7 días (como ya tenías)
-    const alimentoSemanalG = (i) => (biomasaG(i) * (rows.value[i].feed_pct/100)) * 7;
-
-    // FCA semanal: alimento de la semana / ganancia de biomasa de la semana
+    const alimentoSemanalG = (i) => biomasaG(i) * (rows.value[i].feed_pct / 100) * 7;
     const fcaSemanal = (i) => {
       const gain = Math.max(1e-6, biomasaG(i) - biomasaPrevG(i));
       return alimentoSemanalG(i) / gain;
     };
+    const gramsPorM3 = (i) => (state.volumen_m3 ? biomasaG(i) / state.volumen_m3 : 0);
 
-    // Métricas globales
-    const alimentoTotalKg = computed(() => rows.value.reduce((acc, _r, i)=> acc + alimentoSemanalG(i), 0) / 1000);
-    const biomasaFinalKg  = computed(() => biomasaG(rows.value.length-1) / 1000);
-    const fcaGlobal       = computed(() => {
-      const bio0 = biomasaPrevG(0); // org iniciales * peso inicial
-      const bioF = biomasaG(rows.value.length-1);
+    const alimentoTotalKg = computed(() => rows.value.reduce((acc, _r, i) => acc + alimentoSemanalG(i), 0) / 1000);
+    const biomasaFinalKg = computed(() => biomasaG(rows.value.length - 1) / 1000);
+    const fcaGlobal = computed(() => {
+      const bio0 = biomasaPrevG(0);
+      const bioF = biomasaG(rows.value.length - 1);
       const gain = Math.max(1e-6, bioF - bio0);
-      return (alimentoTotalKg.value*1000) / gain; // convertir kg -> g para el cociente
+      return (alimentoTotalKg.value * 1000) / gain;
     });
 
-    // ===== Responsive: tabla ↔ tarjetas =====
+    // ==== responsive ====
     const isMobile = ref(false);
     const mq = window.matchMedia("(max-width: 768px)");
     const updateMobile = () => (isMobile.value = mq.matches);
-    onMounted(()=>{ updateMobile(); mq.addEventListener?.("change",updateMobile); });
-    onBeforeUnmount(()=>{ mq.removeEventListener?.("change",updateMobile); });
+    onMounted(() => {
+      updateMobile();
+      mq.addEventListener?.("change", updateMobile);
+    });
+    onBeforeUnmount(() => mq.removeEventListener?.("change", updateMobile));
 
     // formatos
-    const fmt0 = v => (isFinite(v)? Number(v).toFixed(0):"0");
-    const fmt2 = v => (isFinite(v)? Number(v).toFixed(2):"0.00");
-    const fmt4 = v => (isFinite(v)? Number(v).toFixed(4):"0.0000");
+    const fmt0 = (v) => (isFinite(v) ? Number(v).toFixed(0) : "0");
+    const fmt2 = (v) => (isFinite(v) ? Number(v).toFixed(2) : "0.00");
+    const fmt4 = (v) => (isFinite(v) ? Number(v).toFixed(4) : "0.0000");
 
     return {
       state, rows,
@@ -315,9 +331,9 @@ export default {
       // fechas
       semanaFecha,
       // cálculos
-      orgVivos, orgPorM2, crecSemanal, biomasaG, alimentoSemanalG, fcaSemanal, gramsPorM3: (i)=> state.volumen_m3 ? biomasaG(i)/state.volumen_m3 : 0,
+      orgVivos, orgPorM2, crecSemanal, biomasaG, alimentoSemanalG, fcaSemanal, gramsPorM3,
       alimentoTotalKg, biomasaFinalKg, fcaGlobal,
-      // helpers ui
+      // ui
       resizeRows, isMobile,
       // fmt
       fmt0, fmt2, fmt4,
@@ -348,7 +364,7 @@ export default {
 .table tbody tr:hover td{ background:#f3fdf6; }
 .table tbody tr:nth-child(even) td{ background:rgba(0,0,0,.02); }
 
-/* Sticky sólo a la izquierda */
+/* Sticky izquierda */
 .cell-sticky.left{ position:sticky; left:0; z-index:4; background:#f8f9fa; box-shadow:1px 0 0 var(--color-border,#e5e7eb); }
 
 /* Sombra derecha fija */
