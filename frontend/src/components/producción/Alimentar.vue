@@ -131,17 +131,17 @@ import api from '@/services/axios';
 
 export default {
   name: 'ProduccionAlimentarRegistro',
-  props: {
-    id: { type: [String, Number], required: true } // id de siembra desde la ruta
-  },
+  props: { id: { type: [String, Number], required: true } },
   data() {
     return {
       siembraId: null,
 
-      // catálogo
+      // catálogos
       rubros: [],
       productos: [],
-      rubroAlimentoId: null,
+      rubroAlimentoId: null,        // id del rubro "Alimento" si existe
+      nombreRubroAlimento: 'alimento', // fallback por nombre
+
       cargandoProductos: false,
 
       // selección
@@ -150,34 +150,49 @@ export default {
       loteSeleccionado: '',
       cargandoLotes: false,
 
-      // formulario
-      registro: {
-        kg: null,
-        supervivencia: null,
-        clima: '',
-        observacion: ''
-      },
-      guardando: false
+      // form
+      registro: { kg: null, supervivencia: null, clima: '', observacion: '' },
+      guardando: false,
     };
   },
   computed: {
+    // ✅ Acepta rubro como id, objeto o texto
     productosAlimento() {
-      if (!this.rubroAlimentoId) return [];
-      return this.productos.filter(p => {
-        const rid = p.rubro_id ?? p.rubro ?? p.rubroId;
-        return Number(rid) === Number(this.rubroAlimentoId);
-      });
+      const wantedId = this.rubroAlimentoId != null ? Number(this.rubroAlimentoId) : null;
+      const wantedName = this.nombreRubroAlimento;
+
+      const isAlimento = (p) => {
+        // 1) rubro id directo (rubro_id o rubro numérico)
+        const rid = p?.rubro_id ?? (typeof p?.rubro === 'number' ? p.rubro : null);
+        if (rid != null && wantedId != null && Number(rid) === wantedId) return true;
+
+        // 2) rubro como objeto { id, nombre }
+        if (p?.rubro && typeof p.rubro === 'object') {
+          if (wantedId != null && Number(p.rubro.id ?? p.rubro.id_rubro) === wantedId) return true;
+          const n = String(p.rubro.nombre ?? '').toLowerCase().trim();
+          if (n === wantedName) return true;
+        }
+
+        // 3) rubro como string "Alimento"
+        const rname = String(p?.rubro ?? '').toLowerCase().trim();
+        if (rname && rname === wantedName) return true;
+
+        return false;
+      };
+
+      return this.productos.filter(isAlimento);
     },
+
     loteSeleccionadoObj() {
       return this.lotes.find(l => l.id === this.loteSeleccionado);
-    }
+    },
   },
   watch: {
     productoSeleccionado(newVal) {
       this.loteSeleccionado = '';
       this.lotes = [];
       if (newVal) this.cargarLotesDeProducto(newVal);
-    }
+    },
   },
   methods: {
     async cargarRubrosYProductos() {
@@ -185,20 +200,22 @@ export default {
       try {
         const [rubrosRes, prodRes] = await Promise.all([
           api.get('/rubro/'),
-          api.get('/producto/')
+          api.get('/producto/'),
         ]);
 
         this.rubros = Array.isArray(rubrosRes.data) ? rubrosRes.data : [];
+        // intenta resolver el id del rubro “Alimento”; si no existe, seguimos
         const rubroAli = this.rubros.find(
-          r => String(r.nombre || '').toLowerCase().trim() === 'alimento'
+          r => String(r?.nombre ?? '').toLowerCase().trim() === this.nombreRubroAlimento
         );
         this.rubroAlimentoId = rubroAli ? (rubroAli.id_rubro ?? rubroAli.id) : null;
 
         this.productos = Array.isArray(prodRes.data) ? prodRes.data : [];
       } catch (e) {
         console.error('Error cargando rubros/productos:', e);
-        this.rubroAlimentoId = null;
+        this.rubros = [];
         this.productos = [];
+        this.rubroAlimentoId = null; // forzamos a que pase por nombre
       } finally {
         this.cargandoProductos = false;
       }
@@ -207,22 +224,17 @@ export default {
     async cargarLotesDeProducto(productoId) {
       this.cargandoLotes = true;
       try {
-        // BACKEND: EntradaUnitariaViewSet acepta ?producto_id=
-        const { data } = await api.get('/entradaunitaria/', {
-          params: { producto_id: productoId }
-        });
+        // DRF: EntradaUnitariaViewSet acepta ?producto_id=
+        const { data } = await api.get('/entradaunitaria/', { params: { producto_id: productoId } });
         const filas = Array.isArray(data) ? data : [];
-
-        // Normaliza: id y etiqueta (lote)
-        const mapped = filas
-          .filter(eu => eu && eu.lote)
-          .map(eu => ({
-            id: eu.id ?? eu.id_entradaunitaria ?? eu.pk,
-            etiqueta: eu.lote
-          }));
-
-        // quita duplicados por id
-        this.lotes = [...new Map(mapped.map(x => [x.id, x])).values()];
+        this.lotes = [...new Map(
+          filas
+            .filter(eu => eu && (eu.lote ?? '').toString().trim() !== '')
+            .map(eu => ([
+              (eu.id ?? eu.id_entradaunitaria ?? eu.pk),
+              { id: (eu.id ?? eu.id_entradaunitaria ?? eu.pk), etiqueta: eu.lote }
+            ]))
+        ).values()];
       } catch (e) {
         console.error('Error cargando lotes:', e);
         this.lotes = [];
@@ -232,50 +244,37 @@ export default {
     },
 
     async submitForm() {
-      if (!this.productoSeleccionado) {
-        alert('Seleccione un alimento.');
-        return;
-      }
-      if (!this.loteSeleccionado) {
-        alert('Seleccione un lote.');
-        return;
-      }
-      if (this.registro.kg == null || this.registro.kg < 0) {
-        alert('Ingrese una cantidad (kg) válida.');
-        return;
-      }
+      if (!this.productoSeleccionado) { alert('Seleccione un alimento.'); return; }
+      if (!this.loteSeleccionado) { alert('Seleccione un lote.'); return; }
+      if (this.registro.kg == null || this.registro.kg < 0) { alert('Ingrese kg válidos.'); return; }
 
       this.guardando = true;
       try {
         const payload = {
-          siembra: this.siembraId,                          // numérico
-          producto: Number(this.productoSeleccionado),      // id producto
-          lote_id: this.loteSeleccionado,                   // id de EntradaUnitaria (para trazabilidad)
-          lote: this.loteSeleccionadoObj?.etiqueta ?? '',   // texto del lote (compatibilidad)
-          kg: this.registro.kg != null ? Number(this.registro.kg) : null,
-          supervivencia: this.registro.supervivencia != null
-            ? Number(this.registro.supervivencia) : null,
+          siembra: Number(this.siembraId),
+          producto: Number(this.productoSeleccionado),
+          lote_id: this.loteSeleccionado,
+          lote: this.loteSeleccionadoObj?.etiqueta ?? '',
+          kg: Number(this.registro.kg),
+          supervivencia: this.registro.supervivencia != null ? Number(this.registro.supervivencia) : null,
           clima: this.registro.clima || '',
-          observacion: this.registro.observacion || ''
+          observacion: this.registro.observacion || '',
         };
-
         await api.post('/alimentar/', payload);
-
         alert('¡Registro de alimentación guardado!');
         this.$router.push('/producción/alimentar');
       } catch (e) {
-        console.error('Error al guardar alimentación:', e);
-        const msg = e?.response?.data?.detail || 'No fue posible guardar el registro.';
-        alert(msg);
+        console.error('Error al guardar:', e);
+        alert(e?.response?.data?.detail || 'No fue posible guardar.');
       } finally {
         this.guardando = false;
       }
-    }
+    },
   },
   mounted() {
     this.siembraId = Number(this.id);
     this.cargarRubrosYProductos();
-  }
+  },
 };
 </script>
 
