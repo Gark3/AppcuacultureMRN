@@ -35,12 +35,12 @@
         class="viewport"
         ref="viewport"
         :style="{'--slides': slides, '--gap': gap + 'px'}"
+        @scroll.passive="onScroll"
       >
         <div
           class="track"
           ref="track"
           :class="{ 'track--center': total <= visible }"
-          @scroll.passive="onScroll"
         >
           <article
             v-for="(s,i) in siembrasFiltradas"
@@ -161,19 +161,19 @@ export default {
 
     // --- Carrusel
     slideWidth() {
+      // medimos una tarjeta, el gap real y sumamos
       const track = this.$refs.track;
       if (!track || !track.firstElementChild) return 0;
       const slide = track.firstElementChild;
       const rect = slide.getBoundingClientRect();
-      // sumar el gap (porque flex-gap no está en offsetWidth)
       const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || "0");
       return rect.width + gap;
     },
     scrollToIndex() {
-      const track = this.$refs.track;
-      if (!track) return;
+      const vp = this.$refs.viewport;
+      if (!vp) return;
       const x = this.currentIndex * this.slideWidth();
-      track.scrollTo({ left: x, behavior: "smooth" });
+      vp.scrollTo({ left: x, behavior: "smooth" });
     },
     prev() {
       if (!this.canPrev) return;
@@ -190,11 +190,10 @@ export default {
       this.scrollToIndex();
     },
     onScroll() {
-      // mantiene puntos razonablemente sincronizados si el usuario arrastra con touchpad
-      const track = this.$refs.track;
-      if (!track) return;
+      const vp = this.$refs.viewport;
+      if (!vp) return;
       const w = this.slideWidth();
-      if (w > 0) this.currentIndex = Math.round(track.scrollLeft / w);
+      if (w > 0) this.currentIndex = Math.round(vp.scrollLeft / w);
     },
     setSlidesByViewport() {
       const w = window.innerWidth;
