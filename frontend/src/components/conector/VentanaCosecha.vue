@@ -224,10 +224,15 @@ export default {
   margin-top: 10px;
 }
 
-.viewport {
-  overflow: hidden;
-  width: 100%;
-}
+.viewport { 
+  overflow-x: auto;     /* aquí está el scroll */ 
+  overflow-y: hidden; 
+  width: 100%; 
+  scroll-behavior: smooth;   /* por si el navegador ignora behavior en JS */ 
+} 
+/* opcional: ocultar scrollbar sin desactivar el scroll */ 
+.viewport::-webkit-scrollbar { height: 8px; } 
+.viewport::-webkit-scrollbar-thumb { background: transparent; }
 
 .track {
   display: flex;
