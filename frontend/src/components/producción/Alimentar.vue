@@ -3,58 +3,55 @@
     <h1>Alimentación</h1>
 
     <form @submit.prevent="submitForm">
-      <!-- Producto (Rubro: Alimento) -->
+      <!-- PRODUCTO (solo rubro = Alimento) -->
       <div class="form-group">
-        <label for="producto">Alimento</label>
+        <label for="productoId">Alimento</label>
         <select
-          id="producto"
-          v-model.number="ui.productoId"
-          @change="onProductoChange"
+          id="productoId"
+          v-model.number="productoSeleccionado"
+          :disabled="cargandoProductos"
           required
         >
-          <option :value="0" disabled>Seleccione un alimento</option>
+          <option value="" disabled>
+            {{ cargandoProductos ? 'Cargando…' : 'Seleccione un alimento' }}
+          </option>
           <option
-            v-for="p in productos"
+            v-for="p in productosAlimento"
             :key="p.id"
             :value="p.id"
           >
             {{ p.nombre }}
+            <template v-if="p.presentacion"> · {{ p.presentacion }}</template>
+            <template v-if="p.porcentaje_proteina"> · {{ p.porcentaje_proteina }}% proteína</template>
           </option>
         </select>
-        <small v-if="cargando.productos" class="text-muted">Cargando alimentos…</small>
-        <small v-else-if="!productos.length" class="text-muted">
+        <small v-if="!cargandoProductos && productosAlimento.length===0" class="text-muted">
           No hay productos del rubro “Alimento”.
         </small>
       </div>
 
-      <!-- Lote del producto -->
+      <!-- LOTE del producto elegido -->
       <div class="form-group">
-        <label for="lote">Lote</label>
+        <label for="loteId">Lote</label>
         <select
-          id="lote"
-          v-model="ui.loteCodigo"
-          :disabled="!ui.productoId || cargando.lotes"
+          id="loteId"
+          v-model.number="loteSeleccionado"
+          :disabled="!productoSeleccionado || cargandoLotes"
           required
         >
-          <option value="" disabled>Seleccione un lote</option>
-          <option
-            v-for="l in lotes"
-            :key="l._key"
-            :value="l.codigo"
-          >
-            {{ l.codigo }} <!-- + info extra visible -->
-            <template v-if="l.caducidad || l.stock !== null">
-              — <span v-if="l.caducidad">Cad: {{ l.caducidad }}</span><span v-if="l.caducidad && l.stock !== null"> · </span><span v-if="l.stock !== null">Disp: {{ l.stock }}</span>
-            </template>
+          <option value="" disabled>
+            {{ !productoSeleccionado ? 'Seleccione primero un alimento' : (cargandoLotes ? 'Cargando lotes…' : 'Seleccione un lote') }}
+          </option>
+          <option v-for="l in lotes" :key="l.id" :value="l.id">
+            {{ l.etiqueta }}
           </option>
         </select>
-        <small v-if="cargando.lotes" class="text-muted">Cargando lotes…</small>
-        <small v-else-if="ui.productoId && !lotes.length" class="text-muted">
-          Este alimento no tiene lotes disponibles.
+        <small v-if="productoSeleccionado && !cargandoLotes && lotes.length===0" class="text-muted">
+          Este producto no tiene lotes disponibles.
         </small>
       </div>
 
-      <!-- Cantidad -->
+      <!-- RESTO DE CAMPOS -->
       <div class="form-group">
         <label for="kg">Cantidad de Alimento (kg)</label>
         <input
@@ -68,33 +65,23 @@
         />
       </div>
 
-      <!-- Supervivencia -->
       <div class="form-group">
-        <label for="supervivencia">Supervivencia (%)</label>
-        <input
-          type="number"
-          id="supervivencia"
-          v-model.number="registro.supervivencia"
-          placeholder="Ingrese la supervivencia"
-          min="0"
-          max="100"
-        />
+        <label for="supervivencia">Supervivencia</label>
+        <input type="number" id="supervivencia" v-model.number="registro.supervivencia" placeholder="Ingrese la supervivencia" />
       </div>
 
-      <!-- Clima -->
       <div class="form-group">
         <label for="clima">Clima</label>
         <input type="text" id="clima" v-model.trim="registro.clima" placeholder="Ingrese el clima actual" />
       </div>
 
-      <!-- Observación -->
       <div class="form-group">
         <label for="observacion">Comentarios</label>
         <textarea id="observacion" v-model.trim="registro.observacion" placeholder="Ingrese algún comentario"></textarea>
       </div>
 
-      <button type="submit" :disabled="guardando || !puedeGuardar">
-        {{ guardando ? "Guardando…" : "Registrar Alimentación" }}
+      <button type="submit" :disabled="guardando">
+        {{ guardando ? 'Guardando…' : 'Registrar Alimentación' }}
       </button>
     </form>
   </div>
@@ -104,22 +91,24 @@
 import api from '@/services/axios';
 
 export default {
-  name: 'AlimentarRegistro',
-  props: ['id'], // id de la siembra desde la ruta
+  name: 'AlimentacionRegistro',
+  props: ['id'], // siembra_id desde la ruta
   data() {
     return {
-      // UI/control
-      ui: {
-        productoId: 0,
-        loteCodigo: '', // guardamos el código de lote que verá el usuario
-      },
-      cargando: { productos: false, lotes: false },
+      // control
+      guardando: false,
+      cargandoProductos: false,
+      cargandoLotes: false,
 
-      // Datos cargados
-      productos: [],   // [{id, nombre}]
-      lotes: [],       // [{_key, codigo, caducidad?, stock?}]
+      // ids y catálogos
+      idRubroAlimento: null,
+      productosAlimento: [],
+      productoSeleccionado: null,
 
-      // Registro (mantengo tus campos)
+      lotes: [],
+      loteSeleccionado: null,
+
+      // payload
       registro: {
         kg: null,
         supervivencia: null,
@@ -128,211 +117,115 @@ export default {
       },
 
       siembraId: null,
-      guardando: false,
     };
   },
 
-  computed: {
-    puedeGuardar() {
-      return (
-        this.siembraId &&
-        this.ui.productoId > 0 &&
-        this.ui.loteCodigo &&
-        this.registro.kg !== null &&
-        this.registro.kg >= 0
-      );
-    },
+  mounted() {
+    this.siembraId = Number(this.id);
+    this.cargarRubrosYProductos();
   },
 
-  async mounted() {
-    this.siembraId = Number(this.id);
-    await this.cargarProductosAlimento();
+  watch: {
+    // cuando cambia el producto, cargamos lotes
+    productoSeleccionado(nuevo) {
+      this.loteSeleccionado = null;
+      this.lotes = [];
+      if (!nuevo) return;
+      this.cargarLotesDeProducto(nuevo);
+    },
   },
 
   methods: {
-    // =========================
-    //   CARGA DE PRODUCTOS
-    // =========================
-    async cargarProductosAlimento() {
-      this.cargando.productos = true;
+    /** Opción B: buscar ID del rubro "Alimento" y filtrar los productos por ese ID */
+    async cargarRubrosYProductos() {
+      this.cargandoProductos = true;
       try {
-        // 1) Obtener rubro "Alimento"
-        let rubroId = await this.buscarRubroAlimentoId();
+        const [rubrosRes, productosRes] = await Promise.all([
+          api.get('/rubro/'),
+          api.get('/producto/'),
+        ]);
 
-        // 2) Obtener productos por rubro si hay id; fallback: traer todos y filtrar
-        let productos = [];
-        if (rubroId) {
-          // intenta con query por rubro
-          const tryUrls = [
-            `/producto/?rubro=${rubroId}`,
-            `/producto/?rubro_id=${rubroId}`,
-            `/producto/`, // fallback total
-          ];
-          productos = await this._firstOk(tryUrls, (data) => Array.isArray(data) ? data : []);
-          // si fue el fallback total, filtramos en cliente
-          productos = productos.filter((p) => this._esProductoAlimento(p, rubroId));
+        // 1) obtener id del rubro "Alimento"
+        const rubros = Array.isArray(rubrosRes.data) ? rubrosRes.data : [];
+        this.idRubroAlimento = rubros.find(
+          r => (r.nombre || '').toLowerCase() === 'alimento'
+        )?.id;
+
+        // 2) filtrar productos por ese rubro
+        const productos = Array.isArray(productosRes.data) ? productosRes.data : [];
+        if (this.idRubroAlimento) {
+          this.productosAlimento = productos.filter(p => Number(p.rubro) === Number(this.idRubroAlimento));
         } else {
-          // no encontramos rubro por API, traemos todos y filtramos por nombre del rubro
-          const { data } = await api.get('/producto/');
-          productos = (Array.isArray(data) ? data : []).filter((p) => this._esProductoAlimentoPorNombre(p));
+          this.productosAlimento = [];
         }
-
-        // Normalizamos a {id, nombre}
-        this.productos = productos.map((p) => ({
-          id: this._getId(p),
-          nombre: p?.nombre ?? p?.name ?? `Producto #${this._getId(p) ?? '?'}`,
-          _raw: p,
-        })).filter((p) => p.id); // descarta si no tiene id
-
       } catch (e) {
-        console.error('Error al cargar productos:', e);
-        this.productos = [];
+        console.error('Error cargando rubros/productos:', e);
+        this.productosAlimento = [];
       } finally {
-        this.cargando.productos = false;
+        this.cargandoProductos = false;
       }
     },
 
-    async buscarRubroAlimentoId() {
+    /** Cargar lotes del producto elegido
+     *  Ajusta este endpoint según tu modelo real de lotes.
+     *  Aquí uso EntradaUnitaria como ejemplo y muestro etiqueta legible.
+     */
+    async cargarLotesDeProducto(productoId) {
+      this.cargandoLotes = true;
       try {
-        // intentos de búsqueda de rubro por nombre
-        const tryUrls = [
-          '/rubro/?search=Alimento',
-          '/rubro/?nombre=Alimento',
-          '/rubro/', // fallback total
-        ];
-        const lista = await this._firstOk(tryUrls, (data) => Array.isArray(data) ? data : []);
-        // Buscar por nombre (case-insensitive)
-        const rubro = lista.find((r) =>
-          String(r?.nombre ?? r?.name ?? '').trim().toLowerCase() === 'alimento'
-        );
-        return this._getId(rubro) || null;
-      } catch (e) {
-        console.warn('No se pudo resolver rubro "Alimento":', e?.message);
-        return null;
-      }
-    },
+        // Si usas filtros en DRF, esto te traerá solo las entradas del producto
+        const { data } = await api.get(`/entradaunitaria/`, { params: { producto: productoId } });
 
-    _esProductoAlimento(p, rubroId) {
-      // Soporta producto.rubro == id o {id, nombre}
-      const r = p?.rubro ?? p?.rubro_id;
-      if (typeof r === 'number') return r === rubroId;
-      if (typeof r === 'object' && r) return this._getId(r) === rubroId;
-      return false;
-    },
-
-    _esProductoAlimentoPorNombre(p) {
-      const r = p?.rubro ?? p?.rubro_id;
-      const nombre = (typeof r === 'object' ? (r?.nombre ?? r?.name) : null);
-      return String(nombre || '').trim().toLowerCase() === 'alimento';
-    },
-
-    _getId(obj) {
-      if (!obj) return null;
-      return obj.id ?? obj.id_producto ?? obj.id_estanque ?? obj.pk ?? null;
-    },
-
-    async _firstOk(urls, pick) {
-      for (const u of urls) {
-        try {
-          const { data } = await api.get(u);
-          return pick(data);
-        } catch (_) {/* siguiente intento */}
-      }
-      return [];
-    },
-
-    // =========================
-    //   CARGA DE LOTES
-    // =========================
-    async onProductoChange() {
-      this.ui.loteCodigo = '';
-      this.lotes = [];
-      const pid = this.ui.productoId;
-      if (!pid) return;
-
-      this.cargando.lotes = true;
-      try {
-        // Intentamos con EntradaUnitaria (o el recurso donde llevas inventario por lote)
-        // 1) Primero intentamos filtrar por disponible=1
-        let lista = await this._firstOk(
-          [
-            `/entradaunitaria/?producto=${pid}&disponible=1`,
-            `/entradaunitaria/?producto_id=${pid}&disponible=1`,
-            `/entradaunitaria/?producto=${pid}`, // sin filtro, por si tu API no lo soporta
-            `/entradaunitaria/?producto_id=${pid}`,
-            `/entradaunitaria/`, // súper fallback
-          ],
-          (data) => Array.isArray(data) ? data : []
-        );
-
-        // Si trajimos todas, filtramos en cliente por producto
-        if (lista.length && !lista.some((x) => (x?.producto === pid) || (x?.producto_id === pid) || (this._getId(x?.producto) === pid))) {
-          lista = lista.filter((x) =>
-            (x?.producto === pid) || (x?.producto_id === pid) || (this._getId(x?.producto) === pid)
-          );
-        }
-
-        // Mapeo defensivo de campos típicos: lote, caducidad, stock/existencias/restante
-        this.lotes = lista.map((x, idx) => {
-          const codigo = String(x?.lote ?? x?.codigo_lote ?? x?.lote_numero ?? `LOTE-${idx + 1}`);
-          const cad = x?.caducidad ?? x?.fecha_caducidad ?? x?.vencimiento ?? null;
-          const stock = this._firstNumber(x?.stock, x?.existencias, x?.cantidad_disponible, x?.restante, null);
-          return {
-            _key: `${codigo}-${idx}`,
-            codigo,
-            caducidad: cad ? String(cad).slice(0, 10) : null,
-            stock: (typeof stock === 'number' ? stock : null),
-            _raw: x,
-          };
+        const filas = Array.isArray(data) ? data : [];
+        // arma etiquetas amigables
+        this.lotes = filas.map((eu) => {
+          const etiquetaPartes = [];
+          if (eu.lote) etiquetaPartes.push(`Lote: ${eu.lote}`);
+          if (eu.presentacion) etiquetaPartes.push(`${eu.presentacion}`);
+          if (typeof eu.stock !== 'undefined') etiquetaPartes.push(`stock: ${eu.stock}`);
+          const etiqueta = etiquetaPartes.length ? etiquetaPartes.join(' · ') : `#${eu.id}`;
+          return { id: eu.id, etiqueta };
         });
-
       } catch (e) {
-        console.error('Error al cargar lotes:', e);
+        console.error('Error cargando lotes:', e);
         this.lotes = [];
       } finally {
-        this.cargando.lotes = false;
+        this.cargandoLotes = false;
       }
     },
 
-    _firstNumber(...vals) {
-      for (const v of vals) {
-        const n = Number(v);
-        if (!Number.isNaN(n)) return n;
-      }
-      return null;
-    },
-
-    // =========================
-    //   SUBMIT
-    // =========================
     async submitForm() {
       try {
         this.guardando = true;
 
-        if (!this.puedeGuardar) {
-          alert('Complete producto, lote y cantidad.');
+        // validaciones mínimas
+        if (!this.siembraId) {
+          alert('No se encontró el ciclo (siembra).');
+          return;
+        }
+        if (!this.productoSeleccionado) {
+          alert('Seleccione un alimento.');
+          return;
+        }
+        if (!this.loteSeleccionado) {
+          alert('Seleccione un lote.');
+          return;
+        }
+        if (this.registro.kg == null || Number(this.registro.kg) <= 0) {
+          alert('Ingrese la cantidad de alimento en kg.');
           return;
         }
 
-        // Buscar el nombre del producto para compatibilidad con tu campo "tipo"
-        const prod = this.productos.find((p) => p.id === this.ui.productoId);
-        const nombreProducto = prod?.nombre ?? '';
-
-        // Payload CONSERVANDO tu contrato actual:
-        // - tipo: nombre del producto seleccionado (compatibilidad)
-        // - lote: código/nombre del lote seleccionado
-        // - kg, supervivencia, clima, observacion, siembra
+        // payload para /alimentar/
+        // (usuario y acuicola los setea el backend vía AcuicolaScopedMixin)
         const payload = {
-          tipo: nombreProducto,                          // <— compat
-          lote: this.ui.loteCodigo,                      // <— compat (código de lote)
-          kg: this.registro.kg != null ? Number(this.registro.kg) : null,
+          siembra: this.siembraId,
+          producto: this.productoSeleccionado,
+          lote: this.loteSeleccionado,       // ajusta clave si tu modelo usa otro nombre
+          kg: Number(this.registro.kg),
           supervivencia: this.registro.supervivencia != null ? Number(this.registro.supervivencia) : null,
           clima: this.registro.clima || '',
           observacion: this.registro.observacion || '',
-          siembra: this.siembraId,                       // numérico
-          // Si en el futuro migras el back: puedes enviar también producto_id/lote_id
-          // producto: this.ui.productoId,
-          // lote_id: (this.lotes.find(l => l.codigo===this.ui.loteCodigo)?._raw?.id ?? null),
         };
 
         await api.post('/alimentar/', payload);
@@ -364,54 +257,33 @@ export default {
 }
 .registro-siembra:hover { box-shadow: 0px 6px 15px rgba(0,0,0,0.15); }
 
-h1 {
-  text-align: center;
-  color: #333;
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 20px;
-}
+h1 { text-align: center; color: #333; font-size: 24px; font-weight: 600; margin-bottom: 20px; }
+
 .form-group { margin-bottom: 20px; display: flex; flex-direction: column; }
 label { font-weight: 600; margin-bottom: 8px; color: #444; font-size: 14px; }
+.text-muted { color: #6b7280; font-size: 12px; }
 
 input, select, textarea {
-  width: 100%;
-  padding: 12px;
-  box-sizing: border-box;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.3s ease-in-out;
-  background: #f8f9fa;
+  width: 100%; padding: 12px; box-sizing: border-box;
+  border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+  transition: all 0.3s ease-in-out; background: #f8f9fa;
 }
 input:focus, select:focus, textarea:focus {
-  border-color: #28a745;
-  outline: none;
-  box-shadow: 0 0 5px rgba(40,167,69,0.4);
+  border-color: #28a745; outline: none; box-shadow: 0 0 5px rgba(40,167,69,0.4);
 }
 
 button {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 12px 15px;
-  font-size: 16px;
-  cursor: pointer;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: all 0.3s ease-in-out;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  background-color: #28a745; color: white; border: none; padding: 12px 15px;
+  font-size: 16px; cursor: pointer; border-radius: 8px; font-weight: 600;
+  transition: all 0.3s ease-in-out; text-transform: uppercase; letter-spacing: 1px;
   display: flex; align-items: center; justify-content: center;
 }
 button:hover { background-color: #218838; transform: scale(1.05); }
 button:active { transform: scale(0.98); }
 
-/* Responsive */
 @media (max-width: 768px) {
   .registro-siembra { padding: 20px; }
   h1 { font-size: 20px; }
   button { font-size: 14px; padding: 10px; }
 }
-.text-muted { color: #6b7280; }
 </style>
