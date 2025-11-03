@@ -20,20 +20,13 @@
     </div>
   </section>
 
-  <!-- Carrusel -->
+  <!-- Carrusel con scroll-snap (sin descuadres) -->
   <section
     class="carousel container container--fluid"
     :class="{ 'carousel--compact': totalSlides <= visible }"
-    ref="carouselEl"
-    @keydown.left.prevent="prev"
-    @keydown.right.prevent="next"
-    tabindex="0"
   >
-    <div class="viewport">
-      <div
-        class="track"
-        :style="{ transform: `translateX(-${translatePercent}%)`, gap: gap + 'px' }"
-      >
+    <div class="viewport" ref="viewport">
+      <div class="track" :style="{ gap: gap + 'px' }" ref="track">
         <div
           v-for="(s, i) in siembrasFiltradas"
           :key="s.id_siembra || i"
@@ -115,12 +108,15 @@ export default {
       busqueda: '',
 
       // Carrusel
-      index: 0,
       vw: typeof window !== 'undefined' ? window.innerWidth : 1280,
-      gap: 16,               // px
+      gap: 16,               // espacio entre tarjetas (px)
       perViewDesktop: 3,     // >=1024px
       perViewTablet: 2,      // 640–1023px
-      perViewMobile: 1       // <640px
+      perViewMobile: 1,      // <640px
+
+      // Estado de scroll
+      index: 0,              // índice “lógico” (tarjeta inicial visible)
+      stepPx: 0              // ancho de una tarjeta + gap (px)
     };
   },
   computed: {
@@ -132,7 +128,6 @@ export default {
       );
     },
 
-    // Carrusel
     totalSlides() { return this.siembrasFiltradas?.length || 0; },
     visible() {
       if (this.vw < 640) return this.perViewMobile;
@@ -144,6 +139,8 @@ export default {
     canNext() { return this.index < this.maxIndex; },
     pageIndex() { return Math.floor(this.index); },
     pageCount() { return Math.max(1, this.totalSlides - this.visible + 1); },
+
+    // Ancho flexible para cada slide, sin descuadres, ocupando todo el contenedor
     slideStyle() {
       const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
       return {
@@ -151,10 +148,6 @@ export default {
         maxWidth: `calc((100% - ${this.gap * (v - 1)}px) / ${v})`
       };
     },
-    translatePercent() {
-      const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
-      return (this.index * 100) / v;
-    }
   },
   methods: {
     async obtenerSiembras() {
@@ -178,31 +171,78 @@ export default {
               estanque_ubicacion: e.ubicacion || ''
             };
           });
-        // Ajusta índice por si ahora hay menos slides visibles
-        if (this.index > this.maxIndex) this.index = this.maxIndex;
+
+        this.$nextTick(() => this.measureStep());
       } catch (error) {
         console.error('Error al obtener siembras o estanques:', error);
       }
     },
+
+    // Medir exactamente el “paso”: ancho de una tarjeta + gap
+    measureStep() {
+      const track = this.$refs.track;
+      const slide = track?.querySelector('.slide');
+      if (!slide) { this.stepPx = 0; return; }
+      const rect = slide.getBoundingClientRect();
+      this.stepPx = rect.width + this.gap;
+      // Ajustar índice por si cambió el visible
+      if (this.index > this.maxIndex) this.index = this.maxIndex;
+      this.syncScrollToIndex(false);
+    },
+
+    // Sincroniza el scroll horizontal al índice actual
+    syncScrollToIndex(smooth = true) {
+      const vp = this.$refs.viewport;
+      if (!vp || !this.stepPx) return;
+      const left = this.index * this.stepPx;
+      vp.scrollTo({ left, behavior: smooth ? 'smooth' : 'auto' });
+    },
+
+    // Derivar índice según el scroll actual (para dots y estado de flechas)
+    deriveIndexFromScroll() {
+      const vp = this.$refs.viewport;
+      if (!vp || !this.stepPx) return;
+      const idx = Math.round(vp.scrollLeft / this.stepPx);
+      this.index = Math.max(0, Math.min(idx, this.maxIndex));
+    },
+
+    prev() {
+      if (!this.canPrev) return;
+      this.index -= 1;
+      this.syncScrollToIndex(true);
+    },
+    next() {
+      if (!this.canNext) return;
+      this.index += 1;
+      this.syncScrollToIndex(true);
+    },
+    goToPage(p) {
+      this.index = Math.max(0, Math.min(p, this.maxIndex));
+      this.syncScrollToIndex(true);
+    },
+
     registrarCosecha(id) {
       this.$router.push(`/producción/cosecha/registro/${id}`);
     },
-    // Carrusel
-    prev() { if (this.canPrev) this.index -= 1; },
-    next() { if (this.canNext) this.index += 1; },
-    goToPage(p) { this.index = Math.max(0, Math.min(p, this.maxIndex)); },
+
     onResize() {
       this.vw = window.innerWidth;
-      if (this.index > this.maxIndex) this.index = this.maxIndex;
+      this.$nextTick(() => this.measureStep());
     }
   },
   mounted() {
     this.obtenerSiembras();
     this.onResize();
     window.addEventListener('resize', this.onResize, { passive: true });
+
+    // Vincular scroll para actualizar índice y evitar desalineación
+    const vp = this.$refs.viewport;
+    if (vp) vp.addEventListener('scroll', this.deriveIndexFromScroll, { passive: true });
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.onResize);
+    const vp = this.$refs.viewport;
+    if (vp) vp.removeEventListener('scroll', this.deriveIndexFromScroll);
   }
 };
 </script>
@@ -212,24 +252,32 @@ export default {
 .container.container--fluid { max-width: 100% !important; }
 
 /* Estructura del carrusel */
-.carousel { outline: none; margin-top: 12px; }
+.carousel { margin-top: 12px; }
 .viewport {
   position: relative;
   width: 100%;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: var(--radius-lg, 14px);
   background: var(--color-surface, #fff);
   box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.10));
+  scroll-behavior: smooth;
+  scrollbar-width: none;        /* Firefox */
 }
+.viewport::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+/* Pista y slides */
 .track {
   display: flex;
-  width: 100%;
-  will-change: transform;
-  transition: transform .28s ease;
+  width: max-content;
   padding: 20px;
   box-sizing: border-box;
+  scroll-snap-type: x mandatory;
 }
-.slide { display: flex; }
+.slide {
+  display: flex;
+  scroll-snap-align: start;
+}
 
 /* Tarjeta */
 .card--fill { display: flex; flex-direction: column; height: 100%; width: 100%; }
@@ -266,7 +314,7 @@ export default {
 }
 .dot.active { background: #8d2a2a; }
 
-/* Centrar si hay 1–2 tarjetas */
+/* Si hay 1–2 tarjetas: centramos y ocultamos flechas/dots vía lógica de plantilla */
 .carousel--compact .track { justify-content: center; }
 
 /* Responsive */
