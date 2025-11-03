@@ -29,8 +29,8 @@
         <select
           id="lote"
           v-model="loteSeleccionado"
-          :key="productoSeleccionado"          <!-- fuerza limpiar al cambiar alimento -->
-          :disabled="cargandoLotes"            <!-- solo se deshabilita mientras carga -->
+          :key="productoSeleccionado"         
+          :disabled="cargandoLotes"            
           required
         >
           <option value="" disabled>
