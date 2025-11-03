@@ -1,4 +1,26 @@
 <template>
+  <!-- Encabezado + buscador -->
+  <section class="card">
+    <div class="card__header">
+      <h2 class="card__title">Siembras Activas</h2>
+      <p class="card__sub">
+        Filtra y registra la <strong>cosecha</strong> de tus siembras activas.
+      </p>
+    </div>
+
+    <div class="field">
+      <label for="busqueda">Buscar siembra</label>
+      <input
+        id="busqueda"
+        v-model="busqueda"
+        class="input"
+        type="text"
+        placeholder="Nombre, especie, estanque, etapa, etc."
+      />
+    </div>
+  </section>
+
+  <!-- Carrusel -->
   <section
     class="carousel container container--fluid"
     :class="{ 'carousel--compact': totalSlides <= visible }"
@@ -7,14 +29,10 @@
     @keydown.right.prevent="next"
     tabindex="0"
   >
-    <!-- Pista -->
     <div class="viewport">
       <div
         class="track"
-        :style="{
-          transform: `translateX(-${translatePercent}%)`,
-          gap: gapPx + 'px'
-        }"
+        :style="{ transform: `translateX(-${translatePercent}%)`, gap: gap + 'px' }"
       >
         <div
           v-for="(s, i) in siembrasFiltradas"
@@ -22,7 +40,6 @@
           class="slide"
           :style="slideStyle"
         >
-          <!-- Tarjeta (tu card original) -->
           <article class="card card--fill">
             <div class="card__header">
               <h3 class="card__title">{{ s.estanque_nombre || '—' }}</h3>
@@ -43,7 +60,7 @@
             <div class="mt-auto">
               <button
                 class="btn btn--accent btn--lg w-100"
-                @click="$emit('registrar', s.id_siembra)"
+                @click="registrarCosecha(s.id_siembra)"
               >
                 Registrar Cosecha
               </button>
@@ -52,7 +69,7 @@
         </div>
       </div>
 
-      <!-- Flechas (solo si hay más ítems que visibles) -->
+      <!-- Flechas -->
       <button
         v-if="totalSlides > visible"
         class="nav-btn nav-btn--prev"
@@ -88,67 +105,99 @@
 </template>
 
 <script>
+import axios from '@/services/axios';
+
 export default {
-  name: 'CarruselSiembras',
-  props: {
-    siembrasFiltradas: { type: Array, required: true },
-    gap: { type: Number, default: 16 },           // separación entre slides (px)
-    perViewDesktop: { type: Number, default: 3 }, // >=1024px
-    perViewTablet: { type: Number, default: 2 },  // 640–1023px
-    perViewMobile: { type: Number, default: 1 }   // <640px
-  },
+  name: 'SiembrasActivasCosecha',
   data() {
     return {
+      siembras: [],
+      busqueda: '',
+
+      // Carrusel
       index: 0,
-      vw: typeof window !== 'undefined' ? window.innerWidth : 1280
+      vw: typeof window !== 'undefined' ? window.innerWidth : 1280,
+      gap: 16,               // px
+      perViewDesktop: 3,     // >=1024px
+      perViewTablet: 2,      // 640–1023px
+      perViewMobile: 1       // <640px
     };
   },
   computed: {
+    siembrasFiltradas() {
+      const filtro = this.busqueda.trim().toLowerCase();
+      if (!filtro) return this.siembras;
+      return this.siembras.filter((s) =>
+        Object.values(s).some((v) => String(v ?? '').toLowerCase().includes(filtro))
+      );
+    },
+
+    // Carrusel
     totalSlides() { return this.siembrasFiltradas?.length || 0; },
     visible() {
       if (this.vw < 640) return this.perViewMobile;
       if (this.vw < 1024) return this.perViewTablet;
       return this.perViewDesktop;
     },
-    // cuántas “páginas” hay si avanzamos de 1 en 1
-    maxIndex() {
-      return Math.max(0, this.totalSlides - this.visible);
-    },
+    maxIndex() { return Math.max(0, this.totalSlides - this.visible); },
     canPrev() { return this.index > 0; },
     canNext() { return this.index < this.maxIndex; },
     pageIndex() { return Math.floor(this.index); },
     pageCount() { return Math.max(1, this.totalSlides - this.visible + 1); },
-    gapPx() { return this.gap; },
-    // ancho exacto de cada slide: reparte 100% restando los gaps internos
     slideStyle() {
       const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
-      // total gap por “fila” = gap * (v - 1)
-      // ancho disponible = 100% - esos gaps
       return {
-        flex: `0 0 calc((100% - ${this.gapPx * (v - 1)}px) / ${v})`,
-        maxWidth: `calc((100% - ${this.gapPx * (v - 1)}px) / ${v})`
+        flex: `0 0 calc((100% - ${this.gap * (v - 1)}px) / ${v})`,
+        maxWidth: `calc((100% - ${this.gap * (v - 1)}px) / ${v})`
       };
     },
-    // porcentaje a desplazar por avance de 1 tarjeta
     translatePercent() {
       const v = Math.max(1, Math.min(this.visible, this.totalSlides || 1));
       return (this.index * 100) / v;
     }
   },
   methods: {
+    async obtenerSiembras() {
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const [siembrasRes, estanquesRes] = await Promise.all([
+          axios.get('/siembra/'),
+          axios.get('/estanque/')
+        ]);
+        const estanques = estanquesRes.data || [];
+        this.siembras = (siembrasRes.data || [])
+          .filter(s => s.estado === 1 && s.acuicola === user.acuicola)
+          .map(s => {
+            const e = estanques.find(x => x.id_estanque === s.estanque) || {};
+            return {
+              ...s,
+              estanque_nombre: e.nombre || '',
+              estanque_superficie: e.superficie ?? '',
+              estanque_profundidad: e.profundidad ?? '',
+              estanque_infraestructura: e.infraestructura || '',
+              estanque_ubicacion: e.ubicacion || ''
+            };
+          });
+        // Ajusta índice por si ahora hay menos slides visibles
+        if (this.index > this.maxIndex) this.index = this.maxIndex;
+      } catch (error) {
+        console.error('Error al obtener siembras o estanques:', error);
+      }
+    },
+    registrarCosecha(id) {
+      this.$router.push(`/producción/cosecha/registro/${id}`);
+    },
+    // Carrusel
     prev() { if (this.canPrev) this.index -= 1; },
     next() { if (this.canNext) this.index += 1; },
-    goToPage(p) {
-      // posiciona para que el primer slide visible sea p
-      this.index = Math.max(0, Math.min(p, this.maxIndex));
-    },
+    goToPage(p) { this.index = Math.max(0, Math.min(p, this.maxIndex)); },
     onResize() {
       this.vw = window.innerWidth;
-      // corrige índice si el visible cambió y quedó fuera de rango
       if (this.index > this.maxIndex) this.index = this.maxIndex;
     }
   },
   mounted() {
+    this.obtenerSiembras();
     this.onResize();
     window.addEventListener('resize', this.onResize, { passive: true });
   },
@@ -162,12 +211,12 @@ export default {
 /* Que el carrusel pueda ocupar el 100% horizontal */
 .container.container--fluid { max-width: 100% !important; }
 
-/* Estructura */
-.carousel { outline: none; }
+/* Estructura del carrusel */
+.carousel { outline: none; margin-top: 12px; }
 .viewport {
   position: relative;
   width: 100%;
-  overflow: hidden;              /* oculta desbordes laterales */
+  overflow: hidden;
   border-radius: var(--radius-lg, 14px);
   background: var(--color-surface, #fff);
   box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.10));
@@ -177,20 +226,13 @@ export default {
   width: 100%;
   will-change: transform;
   transition: transform .28s ease;
-  padding: 20px;                 /* respiro interior */
+  padding: 20px;
   box-sizing: border-box;
 }
-
-/* Cada slide ocupa exactamente su porción calculada */
 .slide { display: flex; }
 
-/* Tarjeta: misma altura para que nada “salte” */
-.card--fill {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-}
+/* Tarjeta */
+.card--fill { display: flex; flex-direction: column; height: 100%; width: 100%; }
 .meta p { margin: 6px 0; font-size: .95rem; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mt-auto { margin-top: auto; }
@@ -224,10 +266,10 @@ export default {
 }
 .dot.active { background: #8d2a2a; }
 
-/* Centrar cuando hay 1–2 tarjetas y no se necesitan flechas */
+/* Centrar si hay 1–2 tarjetas */
 .carousel--compact .track { justify-content: center; }
 
-/* Responsivo: 1 por 1 en móvil ya controlado por visible, aquí afinamos UI */
+/* Responsive */
 @media (max-width: 640px) {
   .track { padding: 14px; }
   .nav-btn { width: 36px; height: 36px; font-size: 20px; }
