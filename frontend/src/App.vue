@@ -8,8 +8,8 @@
 
     <!-- Layout general (usuario logueado) -->
     <div v-else-if="loggedIn" class="app-shell">
-      <!-- ===== TOPBAR estilo login ===== -->
-      <header class="topbar login-like">
+      <!-- ===== TOPBAR estilo login + Botón GRID (condicional por wrap) ===== -->
+      <header class="topbar login-like" @keydown.esc="closeTopGrid">
         <div class="brand-group">
           <button
             class="hamburger"
@@ -26,7 +26,13 @@
           </div>
         </div>
 
-        <nav class="main-nav" aria-label="Navegación principal">
+        <!-- NAV superior; se oculta si se detecta “wrap” -->
+        <nav
+          ref="topNav"
+          class="main-nav"
+          aria-label="Navegación principal"
+          :class="{ 'hidden-when-wrapped': isTopWrapped }"
+        >
           <button
             v-for="item in visibleMenuItems"
             :key="item"
@@ -38,7 +44,56 @@
             <span class="pill-text">{{ item }}</span>
           </button>
         </nav>
+
+        <!-- Botón GRID (solo cuando hay wrap) -->
+        <button
+          v-if="isTopWrapped"
+          class="top-grid-btn"
+          @click="openTopGrid"
+          aria-haspopup="dialog"
+          :aria-expanded="isTopGridOpen"
+          aria-controls="topGridSheet"
+          title="Abrir opciones"
+        >
+          ⬛⬛<br/>⬛⬛
+        </button>
       </header>
+
+      <!-- Sheet superior con opciones en rejilla -->
+      <transition name="fade">
+        <div
+          v-if="isTopGridOpen"
+          class="topgrid-backdrop"
+          @click.self="closeTopGrid"
+        >
+          <section
+            id="topGridSheet"
+            class="topgrid-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú superior"
+            ref="topGridSheet"
+            tabindex="-1"
+          >
+            <header class="topgrid-header">
+              <span class="topgrid-title">Menú</span>
+              <button class="topgrid-close" @click="closeTopGrid" aria-label="Cerrar">✕</button>
+            </header>
+
+            <div class="topgrid-grid">
+              <button
+                v-for="item in visibleMenuItems"
+                :key="`grid-${item}`"
+                class="topgrid-tile"
+                @click="onGridGo(item)"
+              >
+                <span class="tile-ico">{{ icons[item] || '•' }}</span>
+                <span class="tile-text">{{ item }}</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      </transition>
 
       <div class="main-container">
         <!-- ===== MENÚ LATERAL estilo login (panel claro + sombra + bordes redondos) ===== -->
@@ -304,6 +359,11 @@ export default {
         "Contaduría": "💰",
         "Cuenta": "👤",
       },
+
+      // Estado del top-menu / grid
+      isTopWrapped: false,   // si el nav superior se rompió en varias filas
+      isTopGridOpen: false,  // sheet del grid abierto/cerrado
+      ro: null,              // ResizeObserver
     };
   },
   computed: {
@@ -394,9 +454,43 @@ export default {
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
+
+    // Detección de “wrap” del top-menu
+    checkTopWrap() {
+      // Si cualquier .nav-pill tiene un offsetTop mayor al de la primera, hay más de una fila
+      const el = this.$refs.topNav;
+      if (!el) { this.isTopWrapped = false; return; }
+      const pills = el.querySelectorAll('.nav-pill');
+      if (!pills.length) { this.isTopWrapped = false; return; }
+      let firstTop = null, wrapped = false;
+      pills.forEach(btn => {
+        const t = btn.offsetTop;
+        if (firstTop === null) firstTop = t;
+        if (t > firstTop) wrapped = true;
+      });
+      this.isTopWrapped = wrapped;
+    },
+
+    // Grid sheet
+    openTopGrid() {
+      this.isTopGridOpen = true;
+      this.$nextTick(() => {
+        const sheet = this.$refs.topGridSheet;
+        if (sheet && typeof sheet.focus === 'function') sheet.focus();
+      });
+    },
+    closeTopGrid() {
+      this.isTopGridOpen = false;
+    },
+    onGridGo(item) {
+      this.changeMenu(item);
+      this.closeTopGrid();
+    },
+
     onResize() {
       this.viewportWidth = window.innerWidth;
       if (!this.isOverlayMode) this.isMenuOpen = true;
+      this.checkTopWrap();
     },
 
     // === API ===
@@ -435,6 +529,8 @@ export default {
         if (this.$route.path !== route) this.$router.push(route);
       } finally {
         this.loadingPerms = false;
+        // Recalcular wrap tras cargar permisos (visibleMenuItems puede cambiar)
+        this.$nextTick(() => this.checkTopWrap());
       }
     },
 
@@ -466,8 +562,20 @@ export default {
       this.bootstrapPerfilYPermisos();
     }
   },
-  mounted() { window.addEventListener("resize", this.onResize); },
-  beforeUnmount() { window.removeEventListener("resize", this.onResize); },
+  mounted() {
+    window.addEventListener("resize", this.onResize);
+    // Observador para detectar cambios de tamaño del nav
+    this.ro = new ResizeObserver(() => this.checkTopWrap());
+    this.$nextTick(() => {
+      const el = this.$refs.topNav;
+      if (el) this.ro.observe(el);
+      this.checkTopWrap(); // evaluación inicial
+    });
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.onResize);
+    if (this.ro) this.ro.disconnect();
+  },
 };
 </script>
 
@@ -507,6 +615,17 @@ export default {
   box-shadow:0 6px 16px rgba(0,0,0,.08);
 }
 .pill-ico{ font-size:16px; line-height:1; }
+
+/* Oculta el nav cuando se detecta wrap (mostramos botón grid en su lugar) */
+.hidden-when-wrapped{ display:none; }
+
+/* ===== Botón GRID compacto en el extremo derecho ===== */
+.top-grid-btn{
+  border:0; background:rgba(141,42,42,.12); cursor:pointer;
+  font-weight:900; line-height:1; padding:6px 10px; border-radius:10px;
+  color:#583a34;
+}
+.top-grid-btn:hover{ background:rgba(141,42,42,.2); }
 
 /* ===== SIDE MENU: panel claro con sombra y bordes ===== */
 .side-menu.sheet{
@@ -559,7 +678,7 @@ export default {
   font-weight:800;
 }
 
-/* Overlay */
+/* Overlay lateral */
 .overlay{
   position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:11;
 }
@@ -576,6 +695,58 @@ export default {
   .content.with-aside{ padding-left: 320px; } /* 280 + margen */
 }
 
+/* ===== Sheet superior (grid) ===== */
+.topgrid-backdrop{
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(0,0,0,.35);
+  display:flex; justify-content:center; align-items:flex-start;
+  padding: 12px;
+}
+.topgrid-sheet{
+  outline: none;
+  position: relative; margin-top: 8px; width: min(720px, 100%);
+  background: rgba(255,255,255,.98);
+  border:1px solid var(--color-border);
+  border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.2);
+  max-height: 80vh; overflow: hidden; display:flex; flex-direction:column;
+}
+.topgrid-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 12px 14px; border-bottom:1px solid var(--color-border);
+  background: rgba(255,255,255,.98);
+}
+.topgrid-title{ font-weight:900; color:var(--color-primary); }
+.topgrid-close{
+  background:transparent; border:0; cursor:pointer; color:#6b7280;
+  font-size:18px; border-radius:8px; padding:6px 8px;
+}
+.topgrid-close:hover{ background:rgba(31,41,55,.06); }
+
+/* Rejilla de opciones */
+.topgrid-grid{
+  padding: 14px; display:grid; gap:12px;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+@media (min-width:480px){
+  .topgrid-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+.topgrid-tile{
+  display:flex; align-items:center; gap:12px;
+  padding:12px; border-radius:12px; border:1px solid rgba(0,0,0,.06);
+  background: #fff; cursor:pointer; text-align:left;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+}
+.topgrid-tile:hover{
+  background: rgba(141,42,42,.06);
+  box-shadow: 0 6px 16px rgba(0,0,0,.08);
+}
+.tile-ico{ font-size:20px; }
+.tile-text{ font-weight:800; color:#583a34; }
+
+/* Fade del overlay */
+.fade-enter-active, .fade-leave-active{ transition: opacity .18s ease; }
+.fade-enter-from, .fade-leave-to{ opacity: 0; }
+
 /* Tema oscuro: mantener coherencia */
 :deep(html.theme-dark) .topbar.login-like{
   background: rgba(15, 23, 42, 0.6);
@@ -590,4 +761,18 @@ export default {
 :deep(html.theme-dark) .side-header{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
 :deep(html.theme-dark) .side-link.router-link-active{ background: rgba(141,42,42,.28); }
+
+/* Dark del grid */
+:deep(html.theme-dark) .topgrid-sheet{
+  background: rgba(15,23,42,.98); border-color:#273449;
+}
+:deep(html.theme-dark) .topgrid-header{
+  background: rgba(15,23,42,.98); border-color:#273449;
+}
+:deep(html.theme-dark) .topgrid-tile{
+  background:#0b1220; border-color:#273449; color:#e5e7eb;
+}
+:deep(html.theme-dark) .topgrid-tile:hover{
+  background: #111a2e;
+}
 </style>
