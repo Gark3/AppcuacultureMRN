@@ -25,6 +25,7 @@
           </div>
         </div>
 
+        <!-- Navegación superior -->
         <nav
           ref="topNav"
           class="main-nav"
@@ -44,6 +45,7 @@
           </button>
         </nav>
 
+        <!-- Botón GRID cuando hay wrap -->
         <button
           v-if="isTopWrapped"
           class="top-grid-btn"
@@ -102,7 +104,7 @@
 
           <ul class="side-list" v-if="!loadingPerms">
             <!-- Producción -->
-            <template v-if="currentMenu === 'Producción' && can('menu_produccion')">
+            <template v-if="currentKey === 'produccion' && can('menu_produccion')">
               <li class="side-group">Operación</li>
               <li v-if="has('produccion_agregar_estanque')">
                 <router-link to="/producción/agregar-estanque" class="side-link" @click="onNavClick">Agregar estanque</router-link>
@@ -136,7 +138,7 @@
             </template>
 
             <!-- Reporte -->
-            <template v-else-if="currentMenu === 'Reporte' && can('menu_reporte')">
+            <template v-else-if="currentKey === 'reporte' && can('menu_reporte')">
               <li class="side-group">Reportes</li>
               <li v-if="has('reporte_estanque')">
                 <router-link to="/reporte/estanque" class="side-link" @click="onNavClick">Estanque</router-link>
@@ -153,7 +155,7 @@
             </template>
 
             <!-- Almacén -->
-            <template v-else-if="currentMenu === 'Almacén' && can('menu_almacen')">
+            <template v-else-if="currentKey === 'almacen' && can('menu_almacen')">
               <li class="side-group">Inventarios</li>
               <li v-if="has('almacen_inventario')">
                 <router-link to="/almacén/inventario" class="side-link" @click="onNavClick">Inventario</router-link>
@@ -182,8 +184,22 @@
               </li>
             </template>
 
+            <!-- Estadístico -->
+            <template v-else-if="currentKey === 'estadistico' && can('menu_estadistico')">
+              <li class="side-group">Pruebas</li>
+              <li v-if="has('estadistico_kolmogorov_smirnov')">
+                <router-link to="/estadístico/kolmogorov-smirnov" class="side-link" @click="onNavClick">Kolmogorov–Smirnov</router-link>
+              </li>
+              <li v-if="has('estadistico_shapiro_wilk')">
+                <router-link to="/estadístico/shapiro-wilk" class="side-link" @click="onNavClick">Shapiro–Wilk</router-link>
+              </li>
+              <li v-if="has('estadistico_anova')">
+                <router-link to="/estadístico/anova" class="side-link" @click="onNavClick">ANOVA</router-link>
+              </li>
+            </template>
+
             <!-- Contaduría -->
-            <template v-else-if="currentMenu === 'Contaduría' && can('menu_contaduria')">
+            <template v-else-if="currentKey === 'contaduria' && can('menu_contaduria')">
               <li class="side-group">Gastos y pagos</li>
               <li v-if="has('contaduria_pagos_servicios')">
                 <router-link to="/contaduría/pagos-servicios" class="side-link" @click="onNavClick">Pagos de servicios</router-link>
@@ -211,7 +227,7 @@
             </template>
 
             <!-- Cuenta -->
-            <template v-else-if="currentMenu === 'Cuenta'">
+            <template v-else-if="currentKey === 'cuenta'">
               <li class="side-group">Cuenta</li>
               <li>
                 <button class="side-link btn-logout" @click="logout">Cerrar sesión</button>
@@ -250,11 +266,13 @@ import axios from "axios";
 import Login from "@/components/LoginPage.vue";
 
 const DEFAULT_PERMS = {
+  // Menús
   menu_produccion: false,
   menu_reporte: false,
   menu_almacen: false,
   menu_estadistico: false,
   menu_contaduria: false,
+  // Producción
   produccion_agregar_estanque: false,
   produccion_siembra: false,
   produccion_alimentar: false,
@@ -264,10 +282,12 @@ const DEFAULT_PERMS = {
   produccion_cosecha: false,
   produccion_tratamientos: false,
   produccion_cuarentena: false,
+  // Reporte
   reporte_estanque: false,
   reporte_crecimiento: false,
   reporte_gpc: false,
   reporte_calidad_agua: false,
+  // Almacén
   almacen_inventario: false,
   almacen_proveedores: false,
   almacen_alta_material: false,
@@ -275,9 +295,11 @@ const DEFAULT_PERMS = {
   almacen_entradas: false,
   almacen_salidas: false,
   almacen_inventario_fisico: false,
+  // Estadístico
   estadistico_kolmogorov_smirnov: false,
   estadistico_shapiro_wilk: false,
   estadistico_anova: false,
+  // Contaduría
   contaduria_nomina: false,
   contaduria_sueldos: false,
   contaduria_pagos_servicios: false,
@@ -293,29 +315,41 @@ export default {
   data() {
     return {
       loggedIn: false,
-      currentMenu: "Producción",
+      currentMenu: "Producción",   // etiqueta visible
+      currentKey: "produccion",    // clave normalizada
       menuItems: ["Producción", "Reporte", "Almacén", "Estadístico", "Contaduría", "Cuenta"],
       isMenuOpen: false,
       viewportWidth: window.innerWidth,
       overlayBreakpoint: 1024,
 
+      // Mapas: etiqueta <-> clave y rutas
+      menuKeyMap: {
+        "Producción": "produccion",
+        "Reporte": "reporte",
+        "Almacén": "almacen",
+        "Estadístico": "estadistico",
+        "Contaduría": "contaduria",
+        "Cuenta": "cuenta",
+      },
       menuRouteMap: {
-        "Producción": "/produccion",
-        "Reporte": "/reporte",
-        "Almacén": "/almacen",
-        "Estadístico": "/estadistico",
-        "Contaduría": "/contaduria",
-        "Cuenta": "/cuenta",
+        produccion: "/produccion",
+        reporte: "/reporte",
+        almacen: "/almacen",
+        estadistico: "/estadistico",
+        contaduria: "/contaduria",
+        cuenta: "/cuenta",
       },
 
+      // Perfil / permisos
       perfil: null,
       permisos: { ...DEFAULT_PERMS },
       loadingPerms: false,
-
       permAliases: { produccion_proyeccion: "produccion_agregar_estanque" },
 
+      // API
       apiBase: import.meta.env.VITE_API_URL || "/api",
 
+      // Iconos
       icons: {
         "Producción": "🧪",
         "Reporte": "📄",
@@ -325,7 +359,7 @@ export default {
         "Cuenta": "👤",
       },
 
-      // Top grid state
+      // Estado GRID superior
       isTopWrapped: false,
       isTopGridOpen: false,
       rowH: 0,
@@ -353,7 +387,7 @@ export default {
     },
   },
   methods: {
-    // Token
+    // === Token ===
     getStoredAccessToken() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) {
@@ -376,7 +410,7 @@ export default {
         token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     },
 
-    // Permisos
+    // === Permisos ===
     can(key) { return Boolean(this.permisos && this.permisos[key]); },
     has(key) {
       const canon = this.permAliases?.[key] || key;
@@ -393,9 +427,14 @@ export default {
       return null;
     },
 
-    // Top grid
-    onTopItemClick(item) { this.changeMenu(item); },
-    openTopGrid() { this.isTopGridOpen = true; this.$nextTick(() => this.$refs.topGridSheet?.focus?.()); },
+    // === Top nav / grid ===
+    onTopItemClick(item) {
+      this.changeMenu(item); // ahora abre aside también en desktop
+    },
+    openTopGrid() {
+      this.isTopGridOpen = true;
+      this.$nextTick(() => this.$refs.topGridSheet?.focus?.());
+    },
     closeTopGrid() { this.isTopGridOpen = false; },
     onGridGo(item) { this.changeMenu(item); this.closeTopGrid(); },
 
@@ -419,14 +458,16 @@ export default {
       }, 80);
     },
 
-    // Menús
+    // === Menús ===
     changeMenu(menuItem) {
       this.currentMenu = menuItem;
-      if (this.isOverlayMode) this.isMenuOpen = true; // sólo móvil
-      if (menuItem !== "Cuenta" && !this.visibleMenuItems.includes(menuItem)) {
-        this.ensureValidCurrentMenu(); return;
-      }
-      const route = this.menuRouteMap[menuItem];
+      this.currentKey = this.menuKeyMap[menuItem] || "cuenta";
+
+      // ✅ Abrir ASIDE SIEMPRE al cambiar de pestaña (móvil y escritorio)
+      this.isMenuOpen = true;
+
+      // Navegación por ruta
+      const route = this.menuRouteMap[this.currentKey];
       if (route && this.$route.path !== route) this.$router.push(route);
     },
     ensureValidCurrentMenu() {
@@ -434,25 +475,24 @@ export default {
       const target = firstAllowed || "Cuenta";
       if (this.currentMenu !== target) {
         this.currentMenu = target;
-        const route = this.menuRouteMap[target];
+        this.currentKey = this.menuKeyMap[target] || "cuenta";
+        const route = this.menuRouteMap[this.currentKey];
         if (route && this.$route.path !== route) this.$router.push(route);
       }
     },
 
-    // UX aside
+    // === UX aside ===
     onNavClick() { if (this.isOverlayMode) this.closeMenu(); },
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
 
     onResize() {
-      const prevOverlay = this.isOverlayMode;
       this.viewportWidth = window.innerWidth;
-      if (!prevOverlay && this.isOverlayMode) this.isMenuOpen = false; // evita quedar abierto debajo
       this.checkTopWrap();
     },
 
-    // API
+    // === API ===
     async fetchPerfilActual() {
       const url = `${this.apiBase}/perfiles/me/`;
       const { data } = await axios.get(url);
@@ -483,7 +523,8 @@ export default {
         console.error("Error cargando perfil/permisos:", err);
         this.permisos = { ...DEFAULT_PERMS };
         this.currentMenu = "Cuenta";
-        const route = this.menuRouteMap["Cuenta"];
+        this.currentKey = "cuenta";
+        const route = this.menuRouteMap[this.currentKey];
         if (this.$route.path !== route) this.$router.push(route);
       } finally {
         this.loadingPerms = false;
@@ -491,24 +532,33 @@ export default {
       }
     },
 
-    // Sesión
-    onLogin() { this.loggedIn = true; this.configurarToken(); this.bootstrapPerfilYPermisos(); },
+    // === Sesión ===
+    onLogin() {
+      this.loggedIn = true;
+      this.configurarToken();
+      this.bootstrapPerfilYPermisos();
+    },
     logout() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) localStorage.removeItem(k);
       document.cookie = "accessToken=; Max-Age=0; path=/;";
       document.cookie = "token=; Max-Age=0; path=/;";
       delete axios.defaults.headers.common["Authorization"];
-      this.loggedIn = false; this.perfil = null; this.permisos = { ...DEFAULT_PERMS };
+      this.loggedIn = false;
+      this.perfil = null;
+      this.permisos = { ...DEFAULT_PERMS };
       this.$router.push("/");
     },
   },
 
   created() {
     this.configurarToken();
-    this.isMenuOpen = false; // siempre inicia oculto
+    this.isMenuOpen = false; // inicia oculto
     const token = this.getStoredAccessToken();
-    if (token) { this.loggedIn = true; this.bootstrapPerfilYPermisos(); }
+    if (token) {
+      this.loggedIn = true;
+      this.bootstrapPerfilYPermisos();
+    }
   },
   mounted() {
     window.addEventListener("resize", this.onResize);
@@ -678,9 +728,4 @@ export default {
 :deep(html.theme-dark) .side-header{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
 :deep(html.theme-dark) .side-link.router-link-active{ background: rgba(141,42,42,.28); }
-
-:deep(html.theme-dark) .topgrid-sheet{ background: rgba(15,23,42,.98); border-color:#273449; }
-:deep(html.theme-dark) .topgrid-header{ background: rgba(15,23,42,.98); border-color:#273449; }
-:deep(html.theme-dark) .topgrid-tile{ background:#0b1220; border-color:#273449; color:#e5e7eb; }
-:deep(html.theme-dark) .topgrid-tile:hover{ background:#111a2e; }
 </style>
