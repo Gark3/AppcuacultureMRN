@@ -1,14 +1,11 @@
 <template>
-  <!-- Tema IPN local (opcional) -->
   <div class="theme-ipn">
-    <!-- Rutas de autenticación -->
     <div v-if="isAuthRoute">
       <router-view />
     </div>
 
-    <!-- Layout general (usuario logueado) -->
     <div v-else-if="loggedIn" class="app-shell">
-      <!-- ===== TOPBAR estilo login + Botón GRID (condicional por wrap) ===== -->
+      <!-- TOPBAR -->
       <header class="topbar login-like" @keydown.esc="closeTopGrid">
         <div class="brand-group">
           <button
@@ -26,19 +23,19 @@
           </div>
         </div>
 
-        <!-- NAV superior; se vuelve "fantasma" si se detecta wrap (conserva altura) -->
+        <!-- NAV superior; “fantasma” solo cuando hay wrap. Reservamos UNA FILA -->
         <nav
           ref="topNav"
           class="main-nav"
           aria-label="Navegación principal"
           :class="{ 'ghost-when-wrapped': isTopWrapped }"
-          :style="isTopWrapped ? { height: topNavH + 'px' } : { height: '' }"
+          :style="isTopWrapped ? { height: rowH + 'px' } : { height: '' }"
         >
           <button
             v-for="item in visibleMenuItems"
             :key="item"
             :class="['nav-pill', { active: currentMenu === item }]"
-            @click="changeMenu(item)"
+            @click="onTopItemClick(item)"
             :title="`Ir a ${item}`"
           >
             <span class="pill-ico" aria-hidden="true">{{ icons[item] || '•' }}</span>
@@ -97,7 +94,7 @@
       </transition>
 
       <div class="main-container">
-        <!-- ===== MENÚ LATERAL ===== -->
+        <!-- ASIDE -->
         <aside
           id="asideMenu"
           class="side-menu sheet"
@@ -241,7 +238,6 @@
               </li>
             </template>
 
-            <!-- Vacío -->
             <template v-else>
               <li class="side-empty">Selecciona una sección arriba</li>
             </template>
@@ -262,7 +258,6 @@
       </div>
     </div>
 
-    <!-- Login si no está logueado -->
     <div v-else>
       <Login @login="onLogin" />
     </div>
@@ -274,13 +269,11 @@ import axios from "axios";
 import Login from "@/components/LoginPage.vue";
 
 const DEFAULT_PERMS = {
-  // Menús
   menu_produccion: false,
   menu_reporte: false,
   menu_almacen: false,
   menu_estadistico: false,
   menu_contaduria: false,
-  // Producción
   produccion_agregar_estanque: false,
   produccion_siembra: false,
   produccion_alimentar: false,
@@ -290,12 +283,10 @@ const DEFAULT_PERMS = {
   produccion_cosecha: false,
   produccion_tratamientos: false,
   produccion_cuarentena: false,
-  // Reporte
   reporte_estanque: false,
   reporte_crecimiento: false,
   reporte_gpc: false,
   reporte_calidad_agua: false,
-  // Almacén
   almacen_inventario: false,
   almacen_proveedores: false,
   almacen_alta_material: false,
@@ -303,11 +294,9 @@ const DEFAULT_PERMS = {
   almacen_entradas: false,
   almacen_salidas: false,
   almacen_inventario_fisico: false,
-  // Estadístico
   estadistico_kolmogorov_smirnov: false,
   estadistico_shapiro_wilk: false,
   estadistico_anova: false,
-  // Contaduría
   contaduria_nomina: false,
   contaduria_sueldos: false,
   contaduria_pagos_servicios: false,
@@ -325,10 +314,9 @@ export default {
       loggedIn: false,
       currentMenu: "Producción",
       menuItems: ["Producción", "Reporte", "Almacén", "Estadístico", "Contaduría", "Cuenta"],
-      isMenuOpen: false,
+      isMenuOpen: false,               // << comienza CERRADO en todas las resoluciones
       viewportWidth: window.innerWidth,
       overlayBreakpoint: 1024,
-      // Rutas raíz sin acentos
       menuRouteMap: {
         "Producción": "/produccion",
         "Reporte": "/reporte",
@@ -338,20 +326,14 @@ export default {
         "Cuenta": "/cuenta",
       },
 
-      // Perfil y permisos
       perfil: null,
       permisos: { ...DEFAULT_PERMS },
       loadingPerms: false,
 
-      // Alias (no toca backend)
-      permAliases: {
-        produccion_proyeccion: "produccion_agregar_estanque",
-      },
+      permAliases: { produccion_proyeccion: "produccion_agregar_estanque" },
 
-      // API
       apiBase: import.meta.env.VITE_API_URL || "/api",
 
-      // Iconos para el top menú (solo visual)
       icons: {
         "Producción": "🧪",
         "Reporte": "📄",
@@ -361,14 +343,12 @@ export default {
         "Cuenta": "👤",
       },
 
-      // Estado del top-menu / grid
-      isTopWrapped: false,   // si el nav superior se rompió en varias filas
-      isTopGridOpen: false,  // sheet del grid abierto/cerrado
-      ro: null,              // ResizeObserver
-
-      // Anti-flicker
-      topNavH: 0,            // altura medida del nav para reservar espacio
-      _wrapTimer: null,      // throttle para checkTopWrap
+      // Estado top grid / anti-flicker
+      isTopWrapped: false,
+      isTopGridOpen: false,
+      ro: null,
+      rowH: 0,                // altura de UNA fila de pills
+      _wrapTimer: null,
     };
   },
   computed: {
@@ -391,7 +371,7 @@ export default {
     },
   },
   methods: {
-    // === Token helpers ===
+    // token
     getStoredAccessToken() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) {
@@ -414,10 +394,8 @@ export default {
         token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     },
 
-    // === Permisos helpers ===
-    can(key) {
-      return Boolean(this.permisos && this.permisos[key]);
-    },
+    // permisos
+    can(key) { return Boolean(this.permisos && this.permisos[key]); },
     has(key) {
       const canon = this.permAliases?.[key] || key;
       const parent = this.parentFor(canon);
@@ -433,10 +411,14 @@ export default {
       return null;
     },
 
-    // === Menús ===
+    // navegación superior
+    onTopItemClick(item) {
+      this.changeMenu(item);
+      // En móvil abrimos aside para mostrar submenú; en desktop NO auto-abrimos
+      if (this.isOverlayMode) this.openMenu();
+    },
     changeMenu(menuItem) {
       this.currentMenu = menuItem;
-      this.isMenuOpen = true;
       if (menuItem !== "Cuenta" && !this.visibleMenuItems.includes(menuItem)) {
         this.ensureValidCurrentMenu();
         return;
@@ -454,43 +436,39 @@ export default {
       }
     },
 
-    // === UX ===
+    // aside
     onNavClick() { if (this.isOverlayMode) this.closeMenu(); },
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
 
-    // Detección de “wrap” del top-menu con throttle anti-flicker
+    // wrap detector (1 fila) con throttle
     checkTopWrap() {
       if (this._wrapTimer) return;
       this._wrapTimer = setTimeout(() => {
         const el = this.$refs.topNav;
-        if (!el) { this.isTopWrapped = false; this.topNavH = 0; this._wrapTimer = null; return; }
+        if (!el) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
 
         const pills = el.querySelectorAll('.nav-pill');
-        if (!pills.length) { this.isTopWrapped = false; this.topNavH = 0; this._wrapTimer = null; return; }
+        if (!pills.length) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
 
-        let firstTop = null, wrapped = false;
+        // Calcula si hay wrap y la altura de UNA sola fila
+        let firstTop = null, wrapped = false, maxH = 0;
         for (const btn of pills) {
           const t = btn.offsetTop;
+          const h = btn.offsetHeight || 0;
+          if (h > maxH) maxH = h;
           if (firstTop === null) firstTop = t;
-          if (t > (firstTop + 1)) { wrapped = true; break; } // tolerancia 1px
+          if (t > firstTop + 1) { wrapped = true; }
         }
         this.isTopWrapped = wrapped;
-
-        // mide altura solo si está envuelto; si no, resetea
-        if (wrapped) {
-          const h = el.offsetHeight || 0;
-          if (h && h !== this.topNavH) this.topNavH = h;
-        } else {
-          this.topNavH = 0;
-        }
+        this.rowH = wrapped ? maxH : 0;
 
         this._wrapTimer = null;
-      }, 80); // 80–120ms estable en emuladores
+      }, 80);
     },
 
-    // Grid sheet
+    // grid sheet
     openTopGrid() {
       this.isTopGridOpen = true;
       this.$nextTick(() => {
@@ -498,28 +476,18 @@ export default {
         if (sheet && typeof sheet.focus === 'function') sheet.focus();
       });
     },
-    closeTopGrid() {
-      this.isTopGridOpen = false;
-    },
-    onGridGo(item) {
-      this.changeMenu(item);
-      this.closeTopGrid();
-    },
+    closeTopGrid() { this.isTopGridOpen = false; },
+    onGridGo(item) { this.changeMenu(item); this.closeTopGrid(); if (this.isOverlayMode) this.openMenu(); },
 
     onResize() {
       const prevOverlay = this.isOverlayMode;
       this.viewportWidth = window.innerWidth;
-
-      // Solo auto-abrir al pasar de móvil -> desktop
-      if (prevOverlay && !this.isOverlayMode) {
-        this.isMenuOpen = true;
-      }
-      // En móvil, respeta el estado del usuario (no forzar true)
-
-      this.checkTopWrap(); // mantener al final para peor caso
+      // Solo auto-abrir cuando pasas de móvil -> desktop
+      if (prevOverlay && !this.isOverlayMode) this.isMenuOpen = false; // incluso en desktop mantenlo cerrado hasta que el usuario lo abra
+      this.checkTopWrap();
     },
 
-    // === API ===
+    // API
     async fetchPerfilActual() {
       const url = `${this.apiBase}/perfiles/me/`;
       const { data } = await axios.get(url);
@@ -528,24 +496,20 @@ export default {
     async fetchPermisos(_perfil) {
       const url = `${this.apiBase}/permisos/mis-permisos/`;
       const obj = (await axios.get(url)).data;
-      const toBool = (v) =>
-        v === true || v === 1 || v === "1" || (typeof v === "string" && v.toLowerCase() === "true");
+      const toBool = (v) => v === true || v === 1 || v === "1" || (typeof v === "string" && v.toLowerCase() === "true");
       const cleaned = {};
       for (const k of Object.keys(DEFAULT_PERMS)) cleaned[k] = toBool(obj?.[k]);
       return cleaned;
     },
 
-    // === Boot ===
     async bootstrapPerfilYPermisos() {
       if (!this.loggedIn) return;
       this.loadingPerms = true;
       try {
         const perfil = await this.fetchPerfilActual();
         this.perfil = perfil || null;
-
         const permisos = await this.fetchPermisos(perfil);
         this.permisos = { ...DEFAULT_PERMS, ...(permisos || {}) };
-
         this.ensureValidCurrentMenu();
       } catch (err) {
         console.error("Error cargando perfil/permisos:", err);
@@ -555,12 +519,10 @@ export default {
         if (this.$route.path !== route) this.$router.push(route);
       } finally {
         this.loadingPerms = false;
-        // Recalcular wrap tras cargar permisos (visibleMenuItems puede cambiar)
         this.$nextTick(() => this.checkTopWrap());
       }
     },
 
-    // === Sesión ===
     onLogin() {
       this.loggedIn = true;
       this.configurarToken();
@@ -589,14 +551,13 @@ export default {
   },
   mounted() {
     window.addEventListener("resize", this.onResize);
-    // Observa el HEADER completo, no solo el nav (más estable)
     this.ro = new ResizeObserver(() => this.checkTopWrap());
     this.$nextTick(() => {
       const header = this.$el.querySelector('.topbar.login-like');
       if (header) this.ro.observe(header);
-      // Estado inicial del lateral: abierto solo en desktop, cerrado en móvil
-      this.isMenuOpen = !this.isOverlayMode;
-      this.checkTopWrap(); // evaluación inicial
+      // Arranca con aside CERRADO (el usuario decide)
+      this.isMenuOpen = false;
+      this.checkTopWrap();
     });
   },
   beforeUnmount() {
@@ -608,7 +569,7 @@ export default {
 </script>
 
 <style scoped>
-/* ===== TOPBAR igual al login (blur, translúcido, pills) ===== */
+/* ===== TOPBAR ===== */
 .topbar.login-like{
   position: sticky; top: 0; z-index: 10;
   backdrop-filter: blur(8px);
@@ -639,42 +600,30 @@ export default {
 }
 .nav-pill:hover{ background:rgba(141,42,42,.08); color:var(--color-primary); }
 .nav-pill.active{
-  background:#ffc107; color:#1f2937; /* igual al login (pill amarilla) */
+  background:#ffc107; color:#1f2937;
   box-shadow:0 6px 16px rgba(0,0,0,.08);
 }
 .pill-ico{ font-size:16px; line-height:1; }
 
-/* "Fantasma" cuando hay wrap: conserva el espacio sin reflow */
+/* Fantasma sin reflow, reservando solo 1 fila (rowH) */
 .ghost-when-wrapped{
   visibility: hidden;
   pointer-events: none;
 }
 
-/* ===== Botón GRID compacto ===== */
+/* Botón GRID compacto y estable */
 .top-grid-btn{
-  border:0;
-  background:rgba(141,42,42,.12);
-  cursor:pointer;
-  width: 40px;
-  height: 40px;
-  padding:0;
-  border-radius:10px;
-  color:#583a34;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  line-height:1;
-  overflow:hidden;
-  flex: 0 0 40px;
+  border:0; background:rgba(141,42,42,.12); cursor:pointer;
+  width: 40px; height: 40px; padding:0; border-radius:10px;
+  color:#583a34; display:flex; align-items:center; justify-content:center;
+  line-height:1; overflow:hidden; flex: 0 0 40px;
 }
 .top-grid-btn:hover{ background:rgba(141,42,42,.2); }
 
-/* ===== SIDE MENU: panel claro con sombra y bordes ===== */
+/* ===== ASIDE ===== */
 .side-menu.sheet{
   position: fixed; top: 70px; left: 12px; bottom: 12px;
-  width: 280px;
-  background: rgba(255,255,255,.96);
-  color: var(--color-text);
+  width: 280px; background: rgba(255,255,255,.96); color: var(--color-text);
   transform: translateX(-120%); transition: transform .25s ease;
   z-index: 12; overflow-y: auto;
   border:1px solid var(--color-border); border-radius: 14px;
@@ -720,25 +669,17 @@ export default {
   font-weight:800;
 }
 
-/* Overlay lateral */
-.overlay{
-  position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:11;
-}
+/* Overlay móvil */
+.overlay{ position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:11; }
 
-/* CONTENIDO como “sheet” blanco (coherente con login) */
+/* Contenido */
 .content.content--sheet{
   background: var(--color-surface);
-  padding: 24px;
-  border-top-left-radius: 14px;
-  min-height: calc(100vh - 70px);
-  transition: padding-left .25s ease;
+  padding: 24px; border-top-left-radius: 14px;
+  min-height: calc(100vh - 70px); transition: padding-left .25s ease;
 }
-@media (min-width:1024px){
-  .content.with-aside{ padding-left: 320px; } /* 280 + margen */
-}
-@media (max-width:1023.98px){
-  .content.with-aside{ padding-left: 0; }     /* en móvil, nunca empujes */
-}
+@media (min-width:1024px){ .content.with-aside{ padding-left: 320px; } }
+@media (max-width:1023.98px){ .content.with-aside{ padding-left: 0; } }
 
 /* ===== Sheet superior (grid) ===== */
 .topgrid-backdrop{
@@ -748,19 +689,14 @@ export default {
   padding: 12px;
 }
 .topgrid-sheet{
-  outline: none;
-  position: relative;
-  margin-top: 8px;
-  width: 100%;
-  max-width: 560px;              /* más compacto por defecto */
+  outline: none; position: relative; margin-top: 8px;
+  width: 100%; max-width: 560px;
   background: rgba(255,255,255,.98);
-  border:1px solid var(--color-border);
-  border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.2);
+  border:1px solid var(--color-border); border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.2);
   max-height: 80vh; overflow: hidden; display:flex; flex-direction:column;
 }
-@media (min-width: 640px){
-  .topgrid-sheet{ max-width: 720px; }         /* más ancho en ≥640px */
-}
+@media (min-width: 640px){ .topgrid-sheet{ max-width: 720px; } }
 .topgrid-header{
   display:flex; align-items:center; justify-content:space-between;
   padding: 12px 14px; border-bottom:1px solid var(--color-border);
@@ -773,14 +709,12 @@ export default {
 }
 .topgrid-close:hover{ background:rgba(31,41,55,.06); }
 
-/* Rejilla de opciones */
+/* Rejilla */
 .topgrid-grid{
   padding: 14px; display:grid; gap:12px;
   grid-template-columns: repeat(2, minmax(0,1fr));
 }
-@media (min-width:480px){
-  .topgrid-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); }
-}
+@media (min-width:480px){ .topgrid-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
 .topgrid-tile{
   display:flex; align-items:center; gap:12px;
   padding:12px; border-radius:12px; border:1px solid rgba(0,0,0,.06);
@@ -794,49 +728,26 @@ export default {
 .tile-ico{ font-size:20px; }
 .tile-text{ font-weight:800; color:#583a34; }
 
-/* Fade del overlay */
+/* Fade */
 .fade-enter-active, .fade-leave-active{ transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to{ opacity: 0; }
 
-/* Optimizaciones de composición / fallback blur */
-.side-menu.sheet,
-.topgrid-sheet,
-.topbar.login-like {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-}
-@supports not ((backdrop-filter: blur(8px))) {
-  .topbar.login-like{ background: rgba(255,255,255,.92); }
-}
-@media (max-width: 420px){
-  .topbar.login-like{ backdrop-filter: none; -webkit-backdrop-filter: none; }
-}
+/* Composición / fallback blur */
+.side-menu.sheet, .topgrid-sheet, .topbar.login-like { will-change: transform, opacity; transform: translateZ(0); }
+@supports not ((backdrop-filter: blur(8px))) { .topbar.login-like{ background: rgba(255,255,255,.92); } }
+@media (max-width: 420px){ .topbar.login-like{ backdrop-filter: none; -webkit-backdrop-filter: none; } }
 
 /* Tema oscuro */
-:deep(html.theme-dark) .topbar.login-like{
-  background: rgba(15, 23, 42, 0.6);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
+:deep(html.theme-dark) .topbar.login-like{ background: rgba(15, 23, 42, 0.6); border-bottom: 1px solid rgba(255,255,255,.08); }
 :deep(html.theme-dark) .nav-pill{ color:#e5e7eb; }
 :deep(html.theme-dark) .nav-pill:hover{ background: rgba(141,42,42,.22); color:#fff; }
-:deep(html.theme-dark) .side-menu.sheet{
-  background: rgba(15,23,42,.96); color:#e5e7eb;
-  border-color:#273449;
-}
+:deep(html.theme-dark) .side-menu.sheet{ background: rgba(15,23,42,.96); color:#e5e7eb; border-color:#273449; }
 :deep(html.theme-dark) .side-header{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
 :deep(html.theme-dark) .side-link.router-link-active{ background: rgba(141,42,42,.28); }
 
-:deep(html.theme-dark) .topgrid-sheet{
-  background: rgba(15,23,42,.98); border-color:#273449;
-}
-:deep(html.theme-dark) .topgrid-header{
-  background: rgba(15,23,42,.98); border-color:#273449;
-}
-:deep(html.theme-dark) .topgrid-tile{
-  background:#0b1220; border-color:#273449; color:#e5e7eb;
-}
-:deep(html.theme-dark) .topgrid-tile:hover{
-  background: #111a2e;
-}
+:deep(html.theme-dark) .topgrid-sheet{ background: rgba(15,23,42,.98); border-color:#273449; }
+:deep(html.theme-dark) .topgrid-header{ background: rgba(15,23,42,.98); border-color:#273449; }
+:deep(html.theme-dark) .topgrid-tile{ background:#0b1220; border-color:#273449; color:#e5e7eb; }
+:deep(html.theme-dark) .topgrid-tile:hover{ background: #111a2e; }
 </style>
