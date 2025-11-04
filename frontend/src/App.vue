@@ -1,12 +1,15 @@
 <template>
   <div class="theme-ipn">
+    <!-- Auth -->
     <div v-if="isAuthRoute">
       <router-view />
     </div>
 
+    <!-- App -->
     <div v-else-if="loggedIn" class="app-shell">
-      <!-- TOPBAR -->
+      <!-- ===== TOPBAR ===== -->
       <header class="topbar login-like" @keydown.esc="closeTopGrid">
+        <!-- Col 1: brand + burger -->
         <div class="brand-group">
           <button
             class="hamburger"
@@ -23,13 +26,13 @@
           </div>
         </div>
 
-        <!-- NAV superior; “fantasma” solo cuando hay wrap. Reservamos UNA FILA -->
+        <!-- Col 2: nav; si hay wrap se hace “fantasma” y reservamos 1 fila -->
         <nav
           ref="topNav"
           class="main-nav"
           aria-label="Navegación principal"
           :class="{ 'ghost-when-wrapped': isTopWrapped }"
-          :style="isTopWrapped ? { height: rowH + 'px' } : { height: '' }"
+          :style="isTopWrapped ? { height: rowH + 'px' } : {}"
         >
           <button
             v-for="item in visibleMenuItems"
@@ -43,7 +46,7 @@
           </button>
         </nav>
 
-        <!-- Botón GRID (solo cuando hay wrap) -->
+        <!-- Col 3: botón GRID (solo si hay wrap) -->
         <button
           v-if="isTopWrapped"
           class="top-grid-btn"
@@ -51,19 +54,13 @@
           aria-haspopup="dialog"
           :aria-expanded="isTopGridOpen"
           aria-controls="topGridSheet"
-          title="Abrir opciones"
-        >
-          ⬛⬛
-        </button>
+          title="Más opciones"
+        >⬛⬛</button>
       </header>
 
-      <!-- Sheet superior con opciones en rejilla -->
+      <!-- Sheet GRID -->
       <transition name="fade">
-        <div
-          v-if="isTopGridOpen"
-          class="topgrid-backdrop"
-          @click.self="closeTopGrid"
-        >
+        <div v-if="isTopGridOpen" class="topgrid-backdrop" @click.self="closeTopGrid">
           <section
             id="topGridSheet"
             class="topgrid-sheet"
@@ -77,7 +74,6 @@
               <span class="topgrid-title">Menú</span>
               <button class="topgrid-close" @click="closeTopGrid" aria-label="Cerrar">✕</button>
             </header>
-
             <div class="topgrid-grid">
               <button
                 v-for="item in visibleMenuItems"
@@ -93,12 +89,13 @@
         </div>
       </transition>
 
+      <!-- ===== LAYOUT ===== -->
       <div class="main-container">
-        <!-- ASIDE -->
+        <!-- ASIDE (drawer) -->
         <aside
           id="asideMenu"
           class="side-menu sheet"
-          :class="{ 'open': isMenuOpen }"
+          :class="{ open: isMenuOpen }"
           aria-label="Submenú de sección"
         >
           <div class="side-header">
@@ -258,6 +255,7 @@
       </div>
     </div>
 
+    <!-- Login -->
     <div v-else>
       <Login @login="onLogin" />
     </div>
@@ -269,11 +267,13 @@ import axios from "axios";
 import Login from "@/components/LoginPage.vue";
 
 const DEFAULT_PERMS = {
+  // Menús
   menu_produccion: false,
   menu_reporte: false,
   menu_almacen: false,
   menu_estadistico: false,
   menu_contaduria: false,
+  // Producción
   produccion_agregar_estanque: false,
   produccion_siembra: false,
   produccion_alimentar: false,
@@ -283,10 +283,12 @@ const DEFAULT_PERMS = {
   produccion_cosecha: false,
   produccion_tratamientos: false,
   produccion_cuarentena: false,
+  // Reporte
   reporte_estanque: false,
   reporte_crecimiento: false,
   reporte_gpc: false,
   reporte_calidad_agua: false,
+  // Almacén
   almacen_inventario: false,
   almacen_proveedores: false,
   almacen_alta_material: false,
@@ -294,9 +296,11 @@ const DEFAULT_PERMS = {
   almacen_entradas: false,
   almacen_salidas: false,
   almacen_inventario_fisico: false,
+  // Estadístico
   estadistico_kolmogorov_smirnov: false,
   estadistico_shapiro_wilk: false,
   estadistico_anova: false,
+  // Contaduría
   contaduria_nomina: false,
   contaduria_sueldos: false,
   contaduria_pagos_servicios: false,
@@ -314,9 +318,10 @@ export default {
       loggedIn: false,
       currentMenu: "Producción",
       menuItems: ["Producción", "Reporte", "Almacén", "Estadístico", "Contaduría", "Cuenta"],
-      isMenuOpen: false,               // << comienza CERRADO en todas las resoluciones
+      isMenuOpen: false,
       viewportWidth: window.innerWidth,
       overlayBreakpoint: 1024,
+
       menuRouteMap: {
         "Producción": "/produccion",
         "Reporte": "/reporte",
@@ -343,11 +348,11 @@ export default {
         "Cuenta": "👤",
       },
 
-      // Estado top grid / anti-flicker
+      // Estado GRID superior
       isTopWrapped: false,
       isTopGridOpen: false,
+      rowH: 0,
       ro: null,
-      rowH: 0,                // altura de UNA fila de pills
       _wrapTimer: null,
     };
   },
@@ -371,7 +376,7 @@ export default {
     },
   },
   methods: {
-    // token
+    // === Token ===
     getStoredAccessToken() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) {
@@ -394,7 +399,7 @@ export default {
         token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     },
 
-    // permisos
+    // === Permisos ===
     can(key) { return Boolean(this.permisos && this.permisos[key]); },
     has(key) {
       const canon = this.permAliases?.[key] || key;
@@ -411,14 +416,54 @@ export default {
       return null;
     },
 
-    // navegación superior
+    // === Top nav / grid ===
     onTopItemClick(item) {
       this.changeMenu(item);
-      // En móvil abrimos aside para mostrar submenú; en desktop NO auto-abrimos
-      if (this.isOverlayMode) this.openMenu();
+      // Independiente del grid: no toca el aside salvo en móvil
     },
+    openTopGrid() {
+      this.isTopGridOpen = true;
+      this.$nextTick(() => {
+        const sheet = this.$refs.topGridSheet;
+        if (sheet && sheet.focus) sheet.focus();
+      });
+    },
+    closeTopGrid() { this.isTopGridOpen = false; },
+    onGridGo(item) {
+      this.changeMenu(item);
+      this.closeTopGrid();
+    },
+
+    checkTopWrap() {
+      if (this._wrapTimer) return;
+      this._wrapTimer = setTimeout(() => {
+        const el = this.$refs.topNav;
+        if (!el) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
+
+        const pills = el.querySelectorAll('.nav-pill');
+        if (!pills.length) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
+
+        let firstTop = null, wrapped = false, maxH = 0;
+        pills.forEach(btn => {
+          const t = btn.offsetTop;
+          const h = btn.offsetHeight || 0;
+          if (h > maxH) maxH = h;
+          if (firstTop === null) firstTop = t;
+          if (t > firstTop + 1) wrapped = true;
+        });
+        this.isTopWrapped = wrapped;
+        this.rowH = wrapped ? maxH : 0;
+        this._wrapTimer = null;
+      }, 80);
+    },
+
+    // === Menús ===
     changeMenu(menuItem) {
       this.currentMenu = menuItem;
+
+      // SOLO abrir aside automáticamente en móvil (overlay)
+      if (this.isOverlayMode) this.isMenuOpen = true;
+
       if (menuItem !== "Cuenta" && !this.visibleMenuItems.includes(menuItem)) {
         this.ensureValidCurrentMenu();
         return;
@@ -436,58 +481,21 @@ export default {
       }
     },
 
-    // aside
+    // === UX aside ===
     onNavClick() { if (this.isOverlayMode) this.closeMenu(); },
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
 
-    // wrap detector (1 fila) con throttle
-    checkTopWrap() {
-      if (this._wrapTimer) return;
-      this._wrapTimer = setTimeout(() => {
-        const el = this.$refs.topNav;
-        if (!el) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
-
-        const pills = el.querySelectorAll('.nav-pill');
-        if (!pills.length) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
-
-        // Calcula si hay wrap y la altura de UNA sola fila
-        let firstTop = null, wrapped = false, maxH = 0;
-        for (const btn of pills) {
-          const t = btn.offsetTop;
-          const h = btn.offsetHeight || 0;
-          if (h > maxH) maxH = h;
-          if (firstTop === null) firstTop = t;
-          if (t > firstTop + 1) { wrapped = true; }
-        }
-        this.isTopWrapped = wrapped;
-        this.rowH = wrapped ? maxH : 0;
-
-        this._wrapTimer = null;
-      }, 80);
-    },
-
-    // grid sheet
-    openTopGrid() {
-      this.isTopGridOpen = true;
-      this.$nextTick(() => {
-        const sheet = this.$refs.topGridSheet;
-        if (sheet && typeof sheet.focus === 'function') sheet.focus();
-      });
-    },
-    closeTopGrid() { this.isTopGridOpen = false; },
-    onGridGo(item) { this.changeMenu(item); this.closeTopGrid(); if (this.isOverlayMode) this.openMenu(); },
-
     onResize() {
       const prevOverlay = this.isOverlayMode;
       this.viewportWidth = window.innerWidth;
-      // Solo auto-abrir cuando pasas de móvil -> desktop
-      if (prevOverlay && !this.isOverlayMode) this.isMenuOpen = false; // incluso en desktop mantenlo cerrado hasta que el usuario lo abra
+      // No fuerces abrir en desktop. Si entras a overlay, cierra para que no quede debajo.
+      if (!prevOverlay && this.isOverlayMode) this.isMenuOpen = false;
       this.checkTopWrap();
     },
 
-    // API
+    // === API ===
     async fetchPerfilActual() {
       const url = `${this.apiBase}/perfiles/me/`;
       const { data } = await axios.get(url);
@@ -496,7 +504,8 @@ export default {
     async fetchPermisos(_perfil) {
       const url = `${this.apiBase}/permisos/mis-permisos/`;
       const obj = (await axios.get(url)).data;
-      const toBool = (v) => v === true || v === 1 || v === "1" || (typeof v === "string" && v.toLowerCase() === "true");
+      const toBool = (v) =>
+        v === true || v === 1 || v === "1" || (typeof v === "string" && v.toLowerCase() === "true");
       const cleaned = {};
       for (const k of Object.keys(DEFAULT_PERMS)) cleaned[k] = toBool(obj?.[k]);
       return cleaned;
@@ -508,8 +517,10 @@ export default {
       try {
         const perfil = await this.fetchPerfilActual();
         this.perfil = perfil || null;
+
         const permisos = await this.fetchPermisos(perfil);
         this.permisos = { ...DEFAULT_PERMS, ...(permisos || {}) };
+
         this.ensureValidCurrentMenu();
       } catch (err) {
         console.error("Error cargando perfil/permisos:", err);
@@ -523,6 +534,7 @@ export default {
       }
     },
 
+    // === Sesión ===
     onLogin() {
       this.loggedIn = true;
       this.configurarToken();
@@ -543,6 +555,7 @@ export default {
 
   created() {
     this.configurarToken();
+    this.isMenuOpen = false; // inicia cerrado
     const token = this.getStoredAccessToken();
     if (token) {
       this.loggedIn = true;
@@ -555,8 +568,6 @@ export default {
     this.$nextTick(() => {
       const header = this.$el.querySelector('.topbar.login-like');
       if (header) this.ro.observe(header);
-      // Arranca con aside CERRADO (el usuario decide)
-      this.isMenuOpen = false;
       this.checkTopWrap();
     });
   },
@@ -569,14 +580,17 @@ export default {
 </script>
 
 <style scoped>
-/* ===== TOPBAR ===== */
+/* ===== TOPBAR (Grid para contener el botón) ===== */
 .topbar.login-like{
   position: sticky; top: 0; z-index: 10;
   backdrop-filter: blur(8px);
   background: rgba(255,255,255,.75);
   border-bottom: 1px solid rgba(0,0,0,.06);
-  display: flex; align-items: center; justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: 16px; padding: 10px clamp(12px, 4vw, 28px);
+  overflow: hidden;
 }
 .brand-group{ display:flex; align-items:center; gap:8px; }
 .hamburger{
@@ -590,7 +604,7 @@ export default {
 .brand-name{ font-weight:800; letter-spacing:.2px; color:var(--color-primary); }
 
 /* Pills */
-.main-nav{ display:flex; gap:clamp(6px,2vw,12px); flex-wrap:wrap; }
+.main-nav{ display:flex; gap:clamp(6px,2vw,12px); flex-wrap:wrap; min-width:0; }
 .nav-pill{
   border:0; background:transparent; cursor:pointer;
   font-weight:800; padding:8px 14px; border-radius:999px;
@@ -605,13 +619,10 @@ export default {
 }
 .pill-ico{ font-size:16px; line-height:1; }
 
-/* Fantasma sin reflow, reservando solo 1 fila (rowH) */
-.ghost-when-wrapped{
-  visibility: hidden;
-  pointer-events: none;
-}
+/* Fantasma cuando hay wrap (reservamos 1 fila) */
+.ghost-when-wrapped{ visibility: hidden; pointer-events: none; }
 
-/* Botón GRID compacto y estable */
+/* Botón GRID compacto */
 .top-grid-btn{
   border:0; background:rgba(141,42,42,.12); cursor:pointer;
   width: 40px; height: 40px; padding:0; border-radius:10px;
@@ -620,7 +631,7 @@ export default {
 }
 .top-grid-btn:hover{ background:rgba(141,42,42,.2); }
 
-/* ===== ASIDE ===== */
+/* ===== ASIDE (Drawer) ===== */
 .side-menu.sheet{
   position: fixed; top: 70px; left: 12px; bottom: 12px;
   width: 280px; background: rgba(255,255,255,.96); color: var(--color-text);
@@ -631,7 +642,7 @@ export default {
 }
 .side-menu.open{ transform: translateX(0); }
 @media (min-width:1024px){
-  .side-menu.sheet{ left:16px; top: 86px; }
+  .side-menu.sheet{ left:16px; top: 86px; bottom: 16px; }
 }
 
 .side-header{
@@ -669,19 +680,19 @@ export default {
   font-weight:800;
 }
 
-/* Overlay móvil */
+/* Overlay */
 .overlay{ position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:11; }
 
-/* Contenido */
+/* CONTENIDO */
 .content.content--sheet{
   background: var(--color-surface);
   padding: 24px; border-top-left-radius: 14px;
-  min-height: calc(100vh - 70px); transition: padding-left .25s ease;
+  min-height: calc(100vh - 70px);
+  transition: padding-left .25s ease;
 }
 @media (min-width:1024px){ .content.with-aside{ padding-left: 320px; } }
-@media (max-width:1023.98px){ .content.with-aside{ padding-left: 0; } }
 
-/* ===== Sheet superior (grid) ===== */
+/* ===== GRID SHEET ===== */
 .topgrid-backdrop{
   position: fixed; inset: 0; z-index: 40;
   background: rgba(0,0,0,.35);
@@ -728,19 +739,21 @@ export default {
 .tile-ico{ font-size:20px; }
 .tile-text{ font-weight:800; color:#583a34; }
 
-/* Fade */
+/* Fade anim */
 .fade-enter-active, .fade-leave-active{ transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to{ opacity: 0; }
 
-/* Composición / fallback blur */
+/* Soporte / tema oscuro */
 .side-menu.sheet, .topgrid-sheet, .topbar.login-like { will-change: transform, opacity; transform: translateZ(0); }
 @supports not ((backdrop-filter: blur(8px))) { .topbar.login-like{ background: rgba(255,255,255,.92); } }
-@media (max-width: 420px){ .topbar.login-like{ backdrop-filter: none; -webkit-backdrop-filter: none; } }
 
-/* Tema oscuro */
-:deep(html.theme-dark) .topbar.login-like{ background: rgba(15, 23, 42, 0.6); border-bottom: 1px solid rgba(255,255,255,.08); }
+:deep(html.theme-dark) .topbar.login-like{
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
 :deep(html.theme-dark) .nav-pill{ color:#e5e7eb; }
 :deep(html.theme-dark) .nav-pill:hover{ background: rgba(141,42,42,.22); color:#fff; }
+
 :deep(html.theme-dark) .side-menu.sheet{ background: rgba(15,23,42,.96); color:#e5e7eb; border-color:#273449; }
 :deep(html.theme-dark) .side-header{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
@@ -749,5 +762,5 @@ export default {
 :deep(html.theme-dark) .topgrid-sheet{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .topgrid-header{ background: rgba(15,23,42,.98); border-color:#273449; }
 :deep(html.theme-dark) .topgrid-tile{ background:#0b1220; border-color:#273449; color:#e5e7eb; }
-:deep(html.theme-dark) .topgrid-tile:hover{ background: #111a2e; }
+:deep(html.theme-dark) .topgrid-tile:hover{ background:#111a2e; }
 </style>
