@@ -32,7 +32,7 @@
           class="main-nav"
           aria-label="Navegación principal"
           :class="{ 'ghost-when-wrapped': isTopWrapped }"
-          :style="isTopWrapped ? { height: topNavH + 'px' } : {}"
+          :style="isTopWrapped ? { height: topNavH + 'px' } : { height: '' }"
         >
           <button
             v-for="item in visibleMenuItems"
@@ -56,7 +56,7 @@
           aria-controls="topGridSheet"
           title="Abrir opciones"
         >
-          ⬛⬛<br/>⬛⬛
+          ⬛⬛
         </button>
       </header>
 
@@ -467,20 +467,25 @@ export default {
         const el = this.$refs.topNav;
         if (!el) { this.isTopWrapped = false; this.topNavH = 0; this._wrapTimer = null; return; }
 
-        // Mide altura actual para reservarla si se oculta
-        const h = el.offsetHeight || 0;
-        if (h && h !== this.topNavH) this.topNavH = h;
-
         const pills = el.querySelectorAll('.nav-pill');
-        if (!pills.length) { this.isTopWrapped = false; this._wrapTimer = null; return; }
+        if (!pills.length) { this.isTopWrapped = false; this.topNavH = 0; this._wrapTimer = null; return; }
 
         let firstTop = null, wrapped = false;
         for (const btn of pills) {
           const t = btn.offsetTop;
           if (firstTop === null) firstTop = t;
-          if (t > firstTop + 1) { wrapped = true; break; } // tolerancia 1px
+          if (t > (firstTop + 1)) { wrapped = true; break; } // tolerancia 1px
         }
         this.isTopWrapped = wrapped;
+
+        // mide altura solo si está envuelto; si no, resetea
+        if (wrapped) {
+          const h = el.offsetHeight || 0;
+          if (h && h !== this.topNavH) this.topNavH = h;
+        } else {
+          this.topNavH = 0;
+        }
+
         this._wrapTimer = null;
       }, 80); // 80–120ms estable en emuladores
     },
@@ -502,8 +507,15 @@ export default {
     },
 
     onResize() {
+      const prevOverlay = this.isOverlayMode;
       this.viewportWidth = window.innerWidth;
-      if (!this.isOverlayMode) this.isMenuOpen = true;
+
+      // Solo auto-abrir al pasar de móvil -> desktop
+      if (prevOverlay && !this.isOverlayMode) {
+        this.isMenuOpen = true;
+      }
+      // En móvil, respeta el estado del usuario (no forzar true)
+
       this.checkTopWrap(); // mantener al final para peor caso
     },
 
@@ -569,7 +581,6 @@ export default {
 
   created() {
     this.configurarToken();
-    this.isMenuOpen = window.innerWidth >= this.overlayBreakpoint;
     const token = this.getStoredAccessToken();
     if (token) {
       this.loggedIn = true;
@@ -583,6 +594,8 @@ export default {
     this.$nextTick(() => {
       const header = this.$el.querySelector('.topbar.login-like');
       if (header) this.ro.observe(header);
+      // Estado inicial del lateral: abierto solo en desktop, cerrado en móvil
+      this.isMenuOpen = !this.isOverlayMode;
       this.checkTopWrap(); // evaluación inicial
     });
   },
@@ -631,17 +644,28 @@ export default {
 }
 .pill-ico{ font-size:16px; line-height:1; }
 
-/* "Fantasma" cuando hay wrap: conserva el espacio pero no pinta */
+/* "Fantasma" cuando hay wrap: conserva el espacio sin reflow */
 .ghost-when-wrapped{
   visibility: hidden;
   pointer-events: none;
 }
 
-/* ===== Botón GRID compacto en el extremo derecho ===== */
+/* ===== Botón GRID compacto ===== */
 .top-grid-btn{
-  border:0; background:rgba(141,42,42,.12); cursor:pointer;
-  font-weight:900; line-height:1; padding:6px 10px; border-radius:10px;
+  border:0;
+  background:rgba(141,42,42,.12);
+  cursor:pointer;
+  width: 40px;
+  height: 40px;
+  padding:0;
+  border-radius:10px;
   color:#583a34;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  overflow:hidden;
+  flex: 0 0 40px;
 }
 .top-grid-btn:hover{ background:rgba(141,42,42,.2); }
 
@@ -712,6 +736,9 @@ export default {
 @media (min-width:1024px){
   .content.with-aside{ padding-left: 320px; } /* 280 + margen */
 }
+@media (max-width:1023.98px){
+  .content.with-aside{ padding-left: 0; }     /* en móvil, nunca empujes */
+}
 
 /* ===== Sheet superior (grid) ===== */
 .topgrid-backdrop{
@@ -722,11 +749,17 @@ export default {
 }
 .topgrid-sheet{
   outline: none;
-  position: relative; margin-top: 8px; width: min(720px, 100%);
+  position: relative;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 560px;              /* más compacto por defecto */
   background: rgba(255,255,255,.98);
   border:1px solid var(--color-border);
   border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.2);
   max-height: 80vh; overflow: hidden; display:flex; flex-direction:column;
+}
+@media (min-width: 640px){
+  .topgrid-sheet{ max-width: 720px; }         /* más ancho en ≥640px */
 }
 .topgrid-header{
   display:flex; align-items:center; justify-content:space-between;
