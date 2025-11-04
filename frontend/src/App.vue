@@ -26,12 +26,13 @@
           </div>
         </div>
 
-        <!-- NAV superior; se oculta si se detecta “wrap” -->
+        <!-- NAV superior; se vuelve "fantasma" si se detecta wrap (conserva altura) -->
         <nav
           ref="topNav"
           class="main-nav"
           aria-label="Navegación principal"
-          :class="{ 'hidden-when-wrapped': isTopWrapped }"
+          :class="{ 'ghost-when-wrapped': isTopWrapped }"
+          :style="isTopWrapped ? { height: topNavH + 'px' } : {}"
         >
           <button
             v-for="item in visibleMenuItems"
@@ -96,7 +97,7 @@
       </transition>
 
       <div class="main-container">
-        <!-- ===== MENÚ LATERAL estilo login (panel claro + sombra + bordes redondos) ===== -->
+        <!-- ===== MENÚ LATERAL ===== -->
         <aside
           id="asideMenu"
           class="side-menu sheet"
@@ -364,6 +365,10 @@ export default {
       isTopWrapped: false,   // si el nav superior se rompió en varias filas
       isTopGridOpen: false,  // sheet del grid abierto/cerrado
       ro: null,              // ResizeObserver
+
+      // Anti-flicker
+      topNavH: 0,            // altura medida del nav para reservar espacio
+      _wrapTimer: null,      // throttle para checkTopWrap
     };
   },
   computed: {
@@ -455,20 +460,29 @@ export default {
     closeMenu() { this.isMenuOpen = false; },
     toggleMenu() { this.isMenuOpen = !this.isMenuOpen; },
 
-    // Detección de “wrap” del top-menu
+    // Detección de “wrap” del top-menu con throttle anti-flicker
     checkTopWrap() {
-      // Si cualquier .nav-pill tiene un offsetTop mayor al de la primera, hay más de una fila
-      const el = this.$refs.topNav;
-      if (!el) { this.isTopWrapped = false; return; }
-      const pills = el.querySelectorAll('.nav-pill');
-      if (!pills.length) { this.isTopWrapped = false; return; }
-      let firstTop = null, wrapped = false;
-      pills.forEach(btn => {
-        const t = btn.offsetTop;
-        if (firstTop === null) firstTop = t;
-        if (t > firstTop) wrapped = true;
-      });
-      this.isTopWrapped = wrapped;
+      if (this._wrapTimer) return;
+      this._wrapTimer = setTimeout(() => {
+        const el = this.$refs.topNav;
+        if (!el) { this.isTopWrapped = false; this.topNavH = 0; this._wrapTimer = null; return; }
+
+        // Mide altura actual para reservarla si se oculta
+        const h = el.offsetHeight || 0;
+        if (h && h !== this.topNavH) this.topNavH = h;
+
+        const pills = el.querySelectorAll('.nav-pill');
+        if (!pills.length) { this.isTopWrapped = false; this._wrapTimer = null; return; }
+
+        let firstTop = null, wrapped = false;
+        for (const btn of pills) {
+          const t = btn.offsetTop;
+          if (firstTop === null) firstTop = t;
+          if (t > firstTop + 1) { wrapped = true; break; } // tolerancia 1px
+        }
+        this.isTopWrapped = wrapped;
+        this._wrapTimer = null;
+      }, 80); // 80–120ms estable en emuladores
     },
 
     // Grid sheet
@@ -490,7 +504,7 @@ export default {
     onResize() {
       this.viewportWidth = window.innerWidth;
       if (!this.isOverlayMode) this.isMenuOpen = true;
-      this.checkTopWrap();
+      this.checkTopWrap(); // mantener al final para peor caso
     },
 
     // === API ===
@@ -564,17 +578,18 @@ export default {
   },
   mounted() {
     window.addEventListener("resize", this.onResize);
-    // Observador para detectar cambios de tamaño del nav
+    // Observa el HEADER completo, no solo el nav (más estable)
     this.ro = new ResizeObserver(() => this.checkTopWrap());
     this.$nextTick(() => {
-      const el = this.$refs.topNav;
-      if (el) this.ro.observe(el);
+      const header = this.$el.querySelector('.topbar.login-like');
+      if (header) this.ro.observe(header);
       this.checkTopWrap(); // evaluación inicial
     });
   },
   beforeUnmount() {
     window.removeEventListener("resize", this.onResize);
     if (this.ro) this.ro.disconnect();
+    if (this._wrapTimer) { clearTimeout(this._wrapTimer); this._wrapTimer = null; }
   },
 };
 </script>
@@ -616,8 +631,11 @@ export default {
 }
 .pill-ico{ font-size:16px; line-height:1; }
 
-/* Oculta el nav cuando se detecta wrap (mostramos botón grid en su lugar) */
-.hidden-when-wrapped{ display:none; }
+/* "Fantasma" cuando hay wrap: conserva el espacio pero no pinta */
+.ghost-when-wrapped{
+  visibility: hidden;
+  pointer-events: none;
+}
 
 /* ===== Botón GRID compacto en el extremo derecho ===== */
 .top-grid-btn{
@@ -747,7 +765,21 @@ export default {
 .fade-enter-active, .fade-leave-active{ transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to{ opacity: 0; }
 
-/* Tema oscuro: mantener coherencia */
+/* Optimizaciones de composición / fallback blur */
+.side-menu.sheet,
+.topgrid-sheet,
+.topbar.login-like {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+@supports not ((backdrop-filter: blur(8px))) {
+  .topbar.login-like{ background: rgba(255,255,255,.92); }
+}
+@media (max-width: 420px){
+  .topbar.login-like{ backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* Tema oscuro */
 :deep(html.theme-dark) .topbar.login-like{
   background: rgba(15, 23, 42, 0.6);
   border-bottom: 1px solid rgba(255,255,255,.08);
@@ -762,7 +794,6 @@ export default {
 :deep(html.theme-dark) .side-link:hover{ background: rgba(141,42,42,.22); color:#fff; }
 :deep(html.theme-dark) .side-link.router-link-active{ background: rgba(141,42,42,.28); }
 
-/* Dark del grid */
 :deep(html.theme-dark) .topgrid-sheet{
   background: rgba(15,23,42,.98); border-color:#273449;
 }
