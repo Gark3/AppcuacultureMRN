@@ -9,7 +9,6 @@
     <div v-else-if="loggedIn" class="app-shell">
       <!-- ===== TOPBAR ===== -->
       <header class="topbar login-like" @keydown.esc="closeTopGrid">
-        <!-- Col 1: brand + burger -->
         <div class="brand-group">
           <button
             class="hamburger"
@@ -26,7 +25,6 @@
           </div>
         </div>
 
-        <!-- Col 2: nav; si hay wrap se hace “fantasma” y reservamos 1 fila -->
         <nav
           ref="topNav"
           class="main-nav"
@@ -46,7 +44,6 @@
           </button>
         </nav>
 
-        <!-- Col 3: botón GRID (solo si hay wrap) -->
         <button
           v-if="isTopWrapped"
           class="top-grid-btn"
@@ -185,20 +182,6 @@
               </li>
             </template>
 
-            <!-- Estadístico -->
-            <template v-else-if="currentMenu === 'Estadístico' && can('menu_estadistico')">
-              <li class="side-group">Pruebas</li>
-              <li v-if="has('estadistico_kolmogorov_smirnov')">
-                <router-link to="/estadístico/kolmogorov-smirnov" class="side-link" @click="onNavClick">Kolmogorov–Smirnov</router-link>
-              </li>
-              <li v-if="has('estadistico_shapiro_wilk')">
-                <router-link to="/estadístico/shapiro-wilk" class="side-link" @click="onNavClick">Shapiro–Wilk</router-link>
-              </li>
-              <li v-if="has('estadistico_anova')">
-                <router-link to="/estadístico/anova" class="side-link" @click="onNavClick">ANOVA</router-link>
-              </li>
-            </template>
-
             <!-- Contaduría -->
             <template v-else-if="currentMenu === 'Contaduría' && can('menu_contaduria')">
               <li class="side-group">Gastos y pagos</li>
@@ -267,13 +250,11 @@ import axios from "axios";
 import Login from "@/components/LoginPage.vue";
 
 const DEFAULT_PERMS = {
-  // Menús
   menu_produccion: false,
   menu_reporte: false,
   menu_almacen: false,
   menu_estadistico: false,
   menu_contaduria: false,
-  // Producción
   produccion_agregar_estanque: false,
   produccion_siembra: false,
   produccion_alimentar: false,
@@ -283,12 +264,10 @@ const DEFAULT_PERMS = {
   produccion_cosecha: false,
   produccion_tratamientos: false,
   produccion_cuarentena: false,
-  // Reporte
   reporte_estanque: false,
   reporte_crecimiento: false,
   reporte_gpc: false,
   reporte_calidad_agua: false,
-  // Almacén
   almacen_inventario: false,
   almacen_proveedores: false,
   almacen_alta_material: false,
@@ -296,11 +275,9 @@ const DEFAULT_PERMS = {
   almacen_entradas: false,
   almacen_salidas: false,
   almacen_inventario_fisico: false,
-  // Estadístico
   estadistico_kolmogorov_smirnov: false,
   estadistico_shapiro_wilk: false,
   estadistico_anova: false,
-  // Contaduría
   contaduria_nomina: false,
   contaduria_sueldos: false,
   contaduria_pagos_servicios: false,
@@ -348,7 +325,7 @@ export default {
         "Cuenta": "👤",
       },
 
-      // Estado GRID superior
+      // Top grid state
       isTopWrapped: false,
       isTopGridOpen: false,
       rowH: 0,
@@ -376,7 +353,7 @@ export default {
     },
   },
   methods: {
-    // === Token ===
+    // Token
     getStoredAccessToken() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) {
@@ -399,7 +376,7 @@ export default {
         token.startsWith("Bearer ") ? token : `Bearer ${token}`;
     },
 
-    // === Permisos ===
+    // Permisos
     can(key) { return Boolean(this.permisos && this.permisos[key]); },
     has(key) {
       const canon = this.permAliases?.[key] || key;
@@ -416,37 +393,22 @@ export default {
       return null;
     },
 
-    // === Top nav / grid ===
-    onTopItemClick(item) {
-      this.changeMenu(item);
-      // Independiente del grid: no toca el aside salvo en móvil
-    },
-    openTopGrid() {
-      this.isTopGridOpen = true;
-      this.$nextTick(() => {
-        const sheet = this.$refs.topGridSheet;
-        if (sheet && sheet.focus) sheet.focus();
-      });
-    },
+    // Top grid
+    onTopItemClick(item) { this.changeMenu(item); },
+    openTopGrid() { this.isTopGridOpen = true; this.$nextTick(() => this.$refs.topGridSheet?.focus?.()); },
     closeTopGrid() { this.isTopGridOpen = false; },
-    onGridGo(item) {
-      this.changeMenu(item);
-      this.closeTopGrid();
-    },
+    onGridGo(item) { this.changeMenu(item); this.closeTopGrid(); },
 
     checkTopWrap() {
       if (this._wrapTimer) return;
       this._wrapTimer = setTimeout(() => {
         const el = this.$refs.topNav;
         if (!el) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
-
         const pills = el.querySelectorAll('.nav-pill');
         if (!pills.length) { this.isTopWrapped = false; this.rowH = 0; this._wrapTimer = null; return; }
-
         let firstTop = null, wrapped = false, maxH = 0;
         pills.forEach(btn => {
-          const t = btn.offsetTop;
-          const h = btn.offsetHeight || 0;
+          const t = btn.offsetTop, h = btn.offsetHeight || 0;
           if (h > maxH) maxH = h;
           if (firstTop === null) firstTop = t;
           if (t > firstTop + 1) wrapped = true;
@@ -457,16 +419,12 @@ export default {
       }, 80);
     },
 
-    // === Menús ===
+    // Menús
     changeMenu(menuItem) {
       this.currentMenu = menuItem;
-
-      // SOLO abrir aside automáticamente en móvil (overlay)
-      if (this.isOverlayMode) this.isMenuOpen = true;
-
+      if (this.isOverlayMode) this.isMenuOpen = true; // sólo móvil
       if (menuItem !== "Cuenta" && !this.visibleMenuItems.includes(menuItem)) {
-        this.ensureValidCurrentMenu();
-        return;
+        this.ensureValidCurrentMenu(); return;
       }
       const route = this.menuRouteMap[menuItem];
       if (route && this.$route.path !== route) this.$router.push(route);
@@ -481,7 +439,7 @@ export default {
       }
     },
 
-    // === UX aside ===
+    // UX aside
     onNavClick() { if (this.isOverlayMode) this.closeMenu(); },
     openMenu() { this.isMenuOpen = true; },
     closeMenu() { this.isMenuOpen = false; },
@@ -490,12 +448,11 @@ export default {
     onResize() {
       const prevOverlay = this.isOverlayMode;
       this.viewportWidth = window.innerWidth;
-      // No fuerces abrir en desktop. Si entras a overlay, cierra para que no quede debajo.
-      if (!prevOverlay && this.isOverlayMode) this.isMenuOpen = false;
+      if (!prevOverlay && this.isOverlayMode) this.isMenuOpen = false; // evita quedar abierto debajo
       this.checkTopWrap();
     },
 
-    // === API ===
+    // API
     async fetchPerfilActual() {
       const url = `${this.apiBase}/perfiles/me/`;
       const { data } = await axios.get(url);
@@ -534,33 +491,24 @@ export default {
       }
     },
 
-    // === Sesión ===
-    onLogin() {
-      this.loggedIn = true;
-      this.configurarToken();
-      this.bootstrapPerfilYPermisos();
-    },
+    // Sesión
+    onLogin() { this.loggedIn = true; this.configurarToken(); this.bootstrapPerfilYPermisos(); },
     logout() {
       const keys = ["accessToken", "access", "token", "jwt", "authToken"];
       for (const k of keys) localStorage.removeItem(k);
       document.cookie = "accessToken=; Max-Age=0; path=/;";
       document.cookie = "token=; Max-Age=0; path=/;";
       delete axios.defaults.headers.common["Authorization"];
-      this.loggedIn = false;
-      this.perfil = null;
-      this.permisos = { ...DEFAULT_PERMS };
+      this.loggedIn = false; this.perfil = null; this.permisos = { ...DEFAULT_PERMS };
       this.$router.push("/");
     },
   },
 
   created() {
     this.configurarToken();
-    this.isMenuOpen = false; // inicia cerrado
+    this.isMenuOpen = false; // siempre inicia oculto
     const token = this.getStoredAccessToken();
-    if (token) {
-      this.loggedIn = true;
-      this.bootstrapPerfilYPermisos();
-    }
+    if (token) { this.loggedIn = true; this.bootstrapPerfilYPermisos(); }
   },
   mounted() {
     window.addEventListener("resize", this.onResize);
@@ -580,7 +528,7 @@ export default {
 </script>
 
 <style scoped>
-/* ===== TOPBAR (Grid para contener el botón) ===== */
+/* ===== TOPBAR ===== */
 .topbar.login-like{
   position: sticky; top: 0; z-index: 10;
   backdrop-filter: blur(8px);
@@ -593,10 +541,7 @@ export default {
   overflow: hidden;
 }
 .brand-group{ display:flex; align-items:center; gap:8px; }
-.hamburger{
-  border:0; background:transparent; cursor:pointer;
-  font-size:20px; padding:8px 10px; border-radius:10px; color:#583a34;
-}
+.hamburger{ border:0; background:transparent; cursor:pointer; font-size:20px; padding:8px 10px; border-radius:10px; color:#583a34; }
 .hamburger:hover{ background:rgba(141,42,42,.08); }
 .brand{ display:flex; align-items:center; gap:10px; user-select:none; cursor:pointer; }
 .brand:focus{ outline:2px solid #8d2a2a33; outline-offset:4px; }
@@ -608,21 +553,17 @@ export default {
 .nav-pill{
   border:0; background:transparent; cursor:pointer;
   font-weight:800; padding:8px 14px; border-radius:999px;
-  display:flex; align-items:center; gap:8px;
-  color:#583a34;
+  display:flex; align-items:center; gap:8px; color:#583a34;
   transition:transform .08s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
 }
 .nav-pill:hover{ background:rgba(141,42,42,.08); color:var(--color-primary); }
-.nav-pill.active{
-  background:#ffc107; color:#1f2937;
-  box-shadow:0 6px 16px rgba(0,0,0,.08);
-}
+.nav-pill.active{ background:#ffc107; color:#1f2937; box-shadow:0 6px 16px rgba(0,0,0,.08); }
 .pill-ico{ font-size:16px; line-height:1; }
 
-/* Fantasma cuando hay wrap (reservamos 1 fila) */
+/* Fantasma cuando hay wrap */
 .ghost-when-wrapped{ visibility: hidden; pointer-events: none; }
 
-/* Botón GRID compacto */
+/* Botón GRID */
 .top-grid-btn{
   border:0; background:rgba(141,42,42,.12); cursor:pointer;
   width: 40px; height: 40px; padding:0; border-radius:10px;
@@ -635,7 +576,8 @@ export default {
 .side-menu.sheet{
   position: fixed; top: 70px; left: 12px; bottom: 12px;
   width: 280px; background: rgba(255,255,255,.96); color: var(--color-text);
-  transform: translateX(-120%); transition: transform .25s ease;
+  transform: translateX(-120%);           /* oculto por defecto */
+  transition: transform .25s ease;
   z-index: 12; overflow-y: auto;
   border:1px solid var(--color-border); border-radius: 14px;
   box-shadow: 0 12px 28px rgba(0,0,0,.14);
@@ -653,17 +595,11 @@ export default {
   border-top-left-radius:14px; border-top-right-radius:14px;
 }
 .side-title{ font-weight:900; color:var(--color-primary); }
-.side-close{
-  background:transparent; color:#6b7280; border:none; cursor:pointer;
-  font-size:18px; border-radius:8px; padding:6px 8px;
-}
+.side-close{ background:transparent; color:#6b7280; border:none; cursor:pointer; font-size:18px; border-radius:8px; padding:6px 8px; }
 .side-close:hover{ background:rgba(31,41,55,.06); }
 
 .side-list{ list-style:none; padding:10px; margin:0; }
-.side-group{
-  margin:8px 6px 6px; font-size:12px; text-transform:uppercase;
-  letter-spacing:.08em; color:#6b7280; font-weight:800;
-}
+.side-group{ margin:8px 6px 6px; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; font-weight:800; }
 .side-sep{ height:8px; }
 .side-link{
   display:block; width:100%; text-align:left;
@@ -708,23 +644,13 @@ export default {
   max-height: 80vh; overflow: hidden; display:flex; flex-direction:column;
 }
 @media (min-width: 640px){ .topgrid-sheet{ max-width: 720px; } }
-.topgrid-header{
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 12px 14px; border-bottom:1px solid var(--color-border);
-  background: rgba(255,255,255,.98);
-}
+.topgrid-header{ display:flex; align-items:center; justify-content:space-between; padding: 12px 14px; border-bottom:1px solid var(--color-border); background: rgba(255,255,255,.98); }
 .topgrid-title{ font-weight:900; color:var(--color-primary); }
-.topgrid-close{
-  background:transparent; border:0; cursor:pointer; color:#6b7280;
-  font-size:18px; border-radius:8px; padding:6px 8px;
-}
+.topgrid-close{ background:transparent; border:0; cursor:pointer; color:#6b7280; font-size:18px; border-radius:8px; padding:6px 8px; }
 .topgrid-close:hover{ background:rgba(31,41,55,.06); }
 
 /* Rejilla */
-.topgrid-grid{
-  padding: 14px; display:grid; gap:12px;
-  grid-template-columns: repeat(2, minmax(0,1fr));
-}
+.topgrid-grid{ padding: 14px; display:grid; gap:12px; grid-template-columns: repeat(2, minmax(0,1fr)); }
 @media (min-width:480px){ .topgrid-grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
 .topgrid-tile{
   display:flex; align-items:center; gap:12px;
@@ -732,10 +658,7 @@ export default {
   background: #fff; cursor:pointer; text-align:left;
   transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
 }
-.topgrid-tile:hover{
-  background: rgba(141,42,42,.06);
-  box-shadow: 0 6px 16px rgba(0,0,0,.08);
-}
+.topgrid-tile:hover{ background: rgba(141,42,42,.06); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
 .tile-ico{ font-size:20px; }
 .tile-text{ font-weight:800; color:#583a34; }
 
@@ -743,14 +666,11 @@ export default {
 .fade-enter-active, .fade-leave-active{ transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to{ opacity: 0; }
 
-/* Soporte / tema oscuro */
-.side-menu.sheet, .topgrid-sheet, .topbar.login-like { will-change: transform, opacity; transform: translateZ(0); }
-@supports not ((backdrop-filter: blur(8px))) { .topbar.login-like{ background: rgba(255,255,255,.92); } }
+/* Aceleración (sin tocar el aside) */
+.topgrid-sheet, .topbar.login-like { will-change: transform, opacity; transform: translateZ(0); }
 
-:deep(html.theme-dark) .topbar.login-like{
-  background: rgba(15, 23, 42, 0.6);
-  border-bottom: 1px solid rgba(255,255,255,.08);
-}
+/* Tema oscuro */
+:deep(html.theme-dark) .topbar.login-like{ background: rgba(15, 23, 42, 0.6); border-bottom: 1px solid rgba(255,255,255,.08); }
 :deep(html.theme-dark) .nav-pill{ color:#e5e7eb; }
 :deep(html.theme-dark) .nav-pill:hover{ background: rgba(141,42,42,.22); color:#fff; }
 
