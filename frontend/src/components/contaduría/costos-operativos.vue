@@ -1,165 +1,524 @@
 <template>
-  <div class="contenedor-costos">
-    <h2>Costos Operativos</h2>
+  <section class="costos">
+    <div class="card">
+      <header class="card__header">
+        <h2 class="card__title">Costos Operativos</h2>
+        <p class="card__sub">
+          Registra gastos generales de la granja o asociados a un ciclo de siembra.
+        </p>
+      </header>
 
-    <form @submit.prevent="registrarGasto" class="formulario">
-      <label>Tipo de Gasto:
-        <select v-model="nuevoGasto.tipo" required>
-          <option disabled value="">Seleccione</option>
-          <option v-for="tipo in tiposGasto" :key="tipo.id" :value="tipo.id">
-            {{ tipo.nombre }}
-          </option>
-        </select>
-      </label>
+      <!-- FORMULARIO -->
+      <form class="form" @submit.prevent="registrarGasto">
+        <!-- Tipo de gasto -->
+        <div class="field">
+          <label class="label" for="tipo">Tipo de gasto</label>
+          <select
+            id="tipo"
+            class="input"
+            v-model="nuevoGasto.tipo"
+            required
+          >
+            <option disabled value="">Seleccione</option>
+            <option
+              v-for="tipo in tiposGasto"
+              :key="tipo.id"
+              :value="tipo.id"
+            >
+              {{ tipo.nombre }}
+            </option>
+          </select>
+        </div>
 
-      <label>Descripción:
-        <textarea v-model="nuevoGasto.descripcion" required></textarea>
-      </label>
+        <!-- Descripción -->
+        <div class="field">
+          <label class="label" for="descripcion">Descripción</label>
+          <textarea
+            id="descripcion"
+            class="input input--textarea"
+            v-model="nuevoGasto.descripcion"
+            rows="3"
+            required
+          ></textarea>
+        </div>
 
-      <label>Monto:
-        <input type="number" v-model.number="nuevoGasto.monto" step="0.01" required />
-      </label>
+        <!-- Monto -->
+        <div class="field field--inline">
+          <div class="field">
+            <label class="label" for="monto">Monto</label>
+            <input
+              id="monto"
+              type="number"
+              class="input"
+              v-model.number="nuevoGasto.monto"
+              step="0.01"
+              min="0"
+              required
+            />
+          </div>
 
-      <label>
-        <input type="checkbox" v-model="nuevoGasto.es_general" />
-        Gasto general (para toda la granja)
-      </label>
+          <div class="field field--checkbox">
+            <label class="checkbox">
+              <input
+                type="checkbox"
+                v-model="nuevoGasto.es_general"
+              />
+              <span>Gasto general (se reparte entre todos los ciclos activos)</span>
+            </label>
+          </div>
+        </div>
 
-      <label v-if="!nuevoGasto.es_general">Ciclo de Siembra:
-        <select v-model="nuevoGasto.siembra" required>
-          <option disabled value="">Seleccione un ciclo</option>
-          <option v-for="ciclo in ciclosActivos" :key="ciclo.id_siembra" :value="ciclo.id_siembra">
-            Estanque {{ ciclo.estanque_nombre }} - {{ ciclo.etapa }}
-          </option>
-        </select>
-      </label>
+        <!-- Ciclo de siembra (solo si NO es general) -->
+        <div
+          class="field"
+          v-if="!nuevoGasto.es_general"
+        >
+          <label class="label" for="siembra">Ciclo de siembra</label>
+          <select
+            id="siembra"
+            class="input"
+            v-model="nuevoGasto.siembra"
+            :required="!nuevoGasto.es_general"
+          >
+            <option disabled value="">Seleccione un ciclo activo</option>
+            <option
+              v-for="ciclo in ciclosActivos"
+              :key="ciclo.id_siembra"
+              :value="ciclo.id_siembra"
+            >
+              Estanque {{ ciclo.estanque_nombre }} · {{ ciclo.etapa || 'Sin etapa' }}
+            </option>
+          </select>
+          <p class="text-muted small" v-if="!ciclosActivos.length">
+            No hay ciclos activos en esta acuícola.
+          </p>
+        </div>
 
-      <button type="submit">Registrar Gasto</button>
-    </form>
-
-    <hr />
-
-    <h3>Historial de Gastos</h3>
-    <div v-if="gastos.length === 0">
-      <p>No hay gastos registrados.</p>
+        <!-- Botón -->
+        <div class="field field--actions">
+          <button
+            type="submit"
+            class="btn btn--primary"
+            :disabled="loading"
+          >
+            {{ loading ? 'Guardando…' : 'Registrar gasto' }}
+          </button>
+        </div>
+      </form>
     </div>
 
-    <div class="lista-gastos">
-      <div v-for="gasto in gastos" :key="gasto.id" class="tarjeta">
-        <h4>{{ gasto.tipo_nombre }}</h4>
-        <p><strong>Monto:</strong> ${{ parseFloat(gasto.monto).toFixed(2) }}</p>
-        <p><strong>Descripción:</strong> {{ gasto.descripcion }}</p>
-        <p><strong>Fecha:</strong> {{ gasto.fecha }}</p>
-        <p><strong>Tipo:</strong> {{ gasto.es_general ? 'General' : 'Específico' }}</p>
-        <p v-if="!gasto.es_general"><strong>Ciclo:</strong> ID {{ gasto.siembra }}</p>
+    <!-- HISTORIAL -->
+    <div class="card card--mt">
+      <header class="card__header card__header--compact">
+        <h3 class="card__title">Historial de gastos</h3>
+        <p class="card__sub" v-if="gastosNormalizados.length">
+          {{ gastosNormalizados.length }} registro(s)
+        </p>
+      </header>
+
+      <div v-if="!gastosNormalizados.length" class="empty-state">
+        <p>No hay gastos registrados.</p>
+      </div>
+
+      <div v-else class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Descripción</th>
+              <th>Monto</th>
+              <th>Alcance</th>
+              <th>Ciclo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="g in gastosNormalizados" :key="g.id">
+              <td>{{ formatFecha(g.fecha) }}</td>
+              <td>{{ g.tipoNombre }}</td>
+              <td>{{ g.descripcion }}</td>
+              <td class="text-right">{{ formatMoneda(g.monto) }}</td>
+              <td>{{ g.esGeneral ? 'General' : 'Específico' }}</td>
+              <td>
+                <span v-if="!g.esGeneral && g.siembra">
+                  #{{ g.siembra }}
+                </span>
+                <span v-else class="text-muted">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script>
-import axios from 'axios';
+import axios from '@/services/axios';
 
 export default {
   name: 'CostosOperativos',
   data() {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
     return {
+      usuarioId: user?.usuario_id ?? null,
+      acuicolaId: user?.acuicola ?? null,
+
       tiposGasto: [],
       ciclosActivos: [],
-      gastos: [],
+      gastos: [],           // crudo desde API
+      loading: false,
+
       nuevoGasto: {
-        tipo: "",
-        descripcion: "",
+        tipo: '',
+        descripcion: '',
         monto: 0,
         es_general: false,
-        siembra: null,
+        siembra: '',
       },
     };
   },
+  computed: {
+    tiposMap() {
+      const map = {};
+      this.tiposGasto.forEach(t => {
+        const id = t.id ?? t.id_tipo_gasto;
+        map[id] = t.nombre;
+      });
+      return map;
+    },
+    gastosNormalizados() {
+      return (this.gastos || []).map(g => {
+        const id = g.id ?? g.id_gasto;
+        const tipoId =
+          typeof g.tipo === 'object'
+            ? (g.tipo.id ?? g.tipo.id_tipo_gasto)
+            : g.tipo;
+        const tipoNombre =
+          typeof g.tipo === 'object'
+            ? (g.tipo.nombre || this.tiposMap[tipoId] || 'Sin tipo')
+            : this.tiposMap[tipoId] || 'Sin tipo';
+
+        const siembraId =
+          typeof g.siembra === 'object'
+            ? (g.siembra.id_siembra ?? g.siembra.id)
+            : g.siembra ?? null;
+
+        const esGeneral =
+          g.es_general ?? g.general ?? (siembraId === null || siembraId === undefined);
+
+        return {
+          id,
+          tipoId,
+          tipoNombre,
+          descripcion: g.descripcion ?? '',
+          monto: Number(g.monto) || 0,
+          fecha: g.fecha || g.created_at || g.fecha_registro || null,
+          esGeneral,
+          siembra: siembraId,
+        };
+      });
+    },
+  },
   methods: {
-    async obtenerDatos() {
+    async cargarCatalogos() {
       try {
-        const [resTipos, resCiclos, resGastos] = await Promise.all([
-          axios.get('/api/tipos-gasto/'),
-          axios.get('/api/siembra/'),
-          axios.get('/api/gastos/'),
+        const [resTipos, resSiembras, resGastos] = await Promise.all([
+          axios.get('/tipo-gasto/'),
+          axios.get('/siembra/'),
+          axios.get('/gasto/'),
         ]);
 
-        this.tiposGasto = resTipos.data;
-        this.ciclosActivos = resCiclos.data.filter(c => !c.fecha_cosecha); // Activos
-        this.gastos = resGastos.data;
-      } catch (error) {
-        console.error("Error al cargar los datos:", error);
-      }
-    },
-    async registrarGasto() {
-      try {
-        const payload = { ...this.nuevoGasto };
-        if (payload.es_general) payload.siembra = null;
+        const tiposRaw = Array.isArray(resTipos.data)
+          ? resTipos.data
+          : (resTipos.data.results || []);
+        const siembrasRaw = Array.isArray(resSiembras.data)
+          ? resSiembras.data
+          : (resSiembras.data.results || []);
+        const gastosRaw = Array.isArray(resGastos.data)
+          ? resGastos.data
+          : (resGastos.data.results || []);
 
-        await axios.post('/api/gastos/', payload);
-        this.limpiarFormulario();
-        this.obtenerDatos();
+        this.tiposGasto = tiposRaw;
+
+        // ciclos activos = siembra SIN fecha de cosecha y de mi acuícola
+        this.ciclosActivos = siembrasRaw.filter(s => {
+          const sinCosecha = !s.fecha_cosecha;
+          const acuicolaId =
+            typeof s.acuicola === 'object'
+              ? (s.acuicola.id_acuicola ?? s.acuicola.id)
+              : s.acuicola;
+          const mismoAcuicola =
+            this.acuicolaId == null || acuicolaId === this.acuicolaId;
+
+          return sinCosecha && mismoAcuicola;
+        }).map(s => ({
+          ...s,
+          estanque_nombre:
+            (s.estanque && (s.estanque.nombre || s.estanque.estanque_nombre)) ||
+            s.estanque_nombre ||
+            s.estanque_id ||
+            'Estanque',
+        }));
+
+        this.gastos = gastosRaw;
       } catch (error) {
-        console.error("Error al registrar el gasto:", error);
+        console.error('Error al cargar los datos de costos operativos:', error);
       }
     },
+
+    async registrarGasto() {
+      if (!this.nuevoGasto.tipo) {
+        alert('Selecciona un tipo de gasto.');
+        return;
+      }
+      if (!this.nuevoGasto.es_general && !this.nuevoGasto.siembra) {
+        alert('Selecciona un ciclo de siembra o marca el gasto como general.');
+        return;
+      }
+
+      try {
+        this.loading = true;
+
+        const payload = {
+          tipo: this.nuevoGasto.tipo,
+          descripcion: this.nuevoGasto.descripcion,
+          monto: this.nuevoGasto.monto,
+          es_general: this.nuevoGasto.es_general,
+          siembra: this.nuevoGasto.es_general ? null : this.nuevoGasto.siembra,
+          usuario: this.usuarioId,
+          acuicola: this.acuicolaId,
+          estado: 1,
+        };
+
+        await axios.post('/gasto/', payload);
+
+        this.limpiarFormulario();
+        await this.cargarCatalogos();
+
+        alert('Gasto registrado con éxito.');
+      } catch (error) {
+        console.error('Error al registrar el gasto:', error);
+        alert('Ocurrió un error al registrar el gasto.');
+      } finally {
+        this.loading = false;
+      }
+    },
+
     limpiarFormulario() {
       this.nuevoGasto = {
-        tipo: "",
-        descripcion: "",
+        tipo: '',
+        descripcion: '',
         monto: 0,
         es_general: false,
-        siembra: null,
+        siembra: '',
       };
-    }
+    },
+
+    formatMoneda(valor) {
+      const n = Number(valor) || 0;
+      return n.toLocaleString('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2,
+      });
+    },
+
+    formatFecha(fecha) {
+      if (!fecha) return '—';
+      const d = new Date(fecha);
+      if (isNaN(d.getTime())) return fecha;
+      return d.toLocaleDateString('es-MX', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    },
   },
   mounted() {
-    this.obtenerDatos();
+    this.cargarCatalogos();
   },
 };
 </script>
 
 <style scoped>
-.contenedor-costos {
-  max-width: auto;
-  margin: auto;
-  padding: 20px;
+.costos {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 10px 40px;
 }
 
-.formulario {
+.card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  padding: 20px 20px 24px;
+}
+
+.card--mt {
+  margin-top: 24px;
+}
+
+.card__header {
+  margin-bottom: 18px;
+}
+
+.card__header--compact {
+  margin-bottom: 12px;
+}
+
+.card__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.card__sub {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+/* Formulario */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field--inline {
   display: grid;
-  gap: 15px;
-  margin-bottom: 30px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 16px;
 }
 
-input[type="number"],
-textarea,
-select {
-  width: 100%;
-  padding: 5px;
-  font-size: 1em;
+.field--checkbox {
+  justify-content: flex-end;
 }
 
-button {
-  padding: 10px;
-  background-color: #3498db;
-  color: white;
-  font-weight: bold;
+.field--actions {
+  margin-top: 8px;
+  align-items: flex-end;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.input {
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
+}
+
+.input--textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+}
+
+/* Botón */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
   border: none;
-  border-radius: 5px;
   cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.lista-gastos {
-  display: grid;
-  gap: 15px;
+.btn--primary {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.25);
 }
 
-.tarjeta {
-  background-color: #f2f2f2;
-  border: 1px solid #ccc;
-  padding: 15px;
-  border-radius: 5px;
+.btn--primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn--primary:disabled {
+  opacity: 0.65;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* Tabla historial */
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table th {
+  text-align: left;
+  font-weight: 600;
+  color: #4b5563;
+  background: #f9fafb;
+}
+
+.table tr:nth-child(even) td {
+  background: #f9fafb;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-muted {
+  color: #9ca3af;
+}
+
+.small {
+  font-size: 0.78rem;
+}
+
+.empty-state {
+  padding: 12px 4px 8px;
+  font-size: 0.9rem;
+  color: #6b7280;
 }
 </style>
