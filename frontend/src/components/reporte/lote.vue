@@ -1,128 +1,146 @@
 <template>
-  <section class="reporte-salidas">
-    <!-- CARD FILTROS -->
-    <div class="card">
-      <header class="card__header">
-        <h2 class="card__title">Reporte de Salidas de Inventario</h2>
-        <p class="card__sub">
-          Genera un reporte detallado de las salidas entre dos fechas.
-        </p>
-      </header>
+  <div class="reporte-salidas-container">
+    <h1>Reporte de salidas de almacén</h1>
 
-      <form class="form-filtros" @submit.prevent="cargarReporte">
-        <div class="field">
-          <label class="label" for="fechaInicio">Fecha de inicio</label>
-          <input
-            id="fechaInicio"
-            type="date"
-            class="input"
-            v-model="fechaInicio"
-            required
-          />
+    <!-- FILTROS DE FECHA -->
+    <form class="filtros" @submit.prevent="aplicarFiltros">
+      <div class="card filtros-card">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fechaInicio">Fecha inicio</label>
+            <input
+              id="fechaInicio"
+              type="date"
+              v-model="filtros.fechaInicio"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="fechaFin">Fecha fin</label>
+            <input
+              id="fechaFin"
+              type="date"
+              v-model="filtros.fechaFin"
+              required
+            />
+          </div>
         </div>
 
-        <div class="field">
-          <label class="label" for="fechaFin">Fecha de fin</label>
-          <input
-            id="fechaFin"
-            type="date"
-            class="input"
-            v-model="fechaFin"
-            required
-          />
-        </div>
-
-        <div class="field field--actions">
+        <div class="form-row acciones">
+          <button type="submit" class="btn-cta" :disabled="cargando">
+            Aplicar filtros
+          </button>
           <button
-            type="submit"
-            class="btn btn--primary"
-            :disabled="loading"
+            type="button"
+            class="btn-sm outline"
+            @click="limpiarFiltros"
+            :disabled="cargando"
           >
-            {{ loading ? 'Cargando…' : 'Generar reporte' }}
+            Limpiar
           </button>
         </div>
-      </form>
-
-      <div class="resumen" v-if="salidasNormalizadas.length">
-        <p>
-          <strong>Rango:</strong>
-          {{ rangoTexto }}
-        </p>
-        <p>
-          <strong>Generado por:</strong>
-          {{ userName || 'Usuario actual' }}
-        </p>
-        <p>
-          <strong>Acuícola:</strong>
-          {{ farmName || 'Granja Acuícola' }}
-        </p>
-        <p>
-          <strong>Registros:</strong> {{ salidasNormalizadas.length }}
-          <span v-if="totalEstimado !== null">
-            · <strong>Costo total estimado:</strong> {{ formatMoneda(totalEstimado) }}
-          </span>
-        </p>
       </div>
+    </form>
 
-      <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+    <!-- MENSAJES DE ESTADO -->
+    <div v-if="error" class="alert error">
+      {{ error }}
+    </div>
+    <div v-if="cargando" class="alert">
+      Cargando datos de salidas…
     </div>
 
-    <!-- TABLA DE RESULTADOS -->
-    <div class="card card--mt">
-      <header class="card__header card__header--compact">
-        <h3 class="card__title">Detalle de salidas</h3>
-      </header>
+    <!-- SIN DATOS -->
+    <div
+      v-if="!cargando && !error && registrosFiltrados.length === 0 && rangoTexto"
+      class="muted"
+    >
+      No hay salidas para el rango seleccionado.
+    </div>
 
-      <div v-if="!salidasNormalizadas.length && !loading" class="empty-state">
-        No hay salidas registradas en el rango seleccionado.
+    <!-- TABLA Y RESUMEN -->
+    <div v-else-if="registrosFiltrados.length">
+      <div class="resumen">
+        <h2>Resumen</h2>
+        <p><strong>Acuícola:</strong> {{ farmName }}</p>
+        <p v-if="rangoTexto">
+          <strong>Periodo:</strong> {{ rangoTexto }}
+        </p>
+        <p><strong>Total de salidas unitarias:</strong> {{ registrosFiltrados.length }}</p>
+        <p><strong>Monto total estimado:</strong> ${{ totalMonto.toFixed(2) }}</p>
       </div>
 
-      <div v-else class="table-wrap">
-        <table class="table">
+      <div class="tabla-wrapper">
+        <table>
           <thead>
             <tr>
               <th>Fecha</th>
-              <th>ID Salida</th>
-              <th>ID Salida Unitaria</th>
+              <th>ID salida</th>
+              <th>ID salida unitaria</th>
               <th>Producto</th>
-              <th>Cantidad</th>
-              <th>Costo unitario</th>
-              <th>Ciclo (siembra)</th>
+              <th>Lote</th>
+              <th>Cant.</th>
+              <th>Kg</th>
+              <th>Costo estimado</th>
+              <th>Siembra</th>
+              <th>Solicitó</th>
               <th>Registró</th>
-              <th>Solicitante</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in salidasNormalizadas" :key="row.rowKey">
-              <td>{{ formatFecha(row.fecha) }}</td>
-              <td>{{ row.idSalida ?? '—' }}</td>
-              <td>{{ row.idSalidaUnitaria ?? '—' }}</td>
-              <td>{{ row.productoNombre || '—' }}</td>
+            <tr v-for="row in registrosFiltrados" :key="row.id_salida_unitaria">
+              <td>{{ formatearFechaHora(row.fechaIso) }}</td>
+              <td>{{ row.id_salida }}</td>
+              <td>{{ row.id_salida_unitaria }}</td>
+              <td>{{ row.producto }}</td>
+              <td>{{ row.lote }}</td>
               <td>
-                {{ row.cantidad }}
-                <span v-if="row.unidad" class="text-muted"> {{ row.unidad }}</span>
-              </td>
-              <td class="text-right">
-                {{ row.costoUnitario != null ? formatMoneda(row.costoUnitario) : '—' }}
-              </td>
-              <td>
-                <span v-if="row.siembraId">
-                  #{{ row.siembraId }} — {{ row.siembraNombre || 'Siembra' }}
+                <span v-if="row.cantidad != null">
+                  {{ row.cantidad.toFixed(2) }}
                 </span>
-                <span v-else class="text-muted">Sin siembra</span>
+                <span v-else>-</span>
               </td>
-              <td>{{ row.usuarioRegistro || '—' }}</td>
-              <td>{{ row.solicitante || '—' }}</td>
+              <td>
+                <span v-if="row.cantidad_kg != null">
+                  {{ row.cantidad_kg.toFixed(2) }}
+                </span>
+                <span v-else>-</span>
+              </td>
+              <td>
+                <span v-if="row.costo_salida != null">
+                  ${{ row.costo_salida.toFixed(2) }}
+                </span>
+                <span v-else>-</span>
+              </td>
+              <td>
+                <span v-if="row.siembra_id">
+                  {{ row.siembra_id }} — {{ row.siembra_nombre }}
+                </span>
+                <span v-else>-</span>
+              </td>
+              <td>{{ row.solicitante || '-' }}</td>
+              <td>{{ row.registrado_por || '-' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div class="btn-row" v-if="salidasNormalizadas.length">
-        <button type="button" class="btn btn--outline" @click="mostrarVistaPrevia">
+      <!-- BOTONES PDF -->
+      <div class="btn-row">
+        <button
+          type="button"
+          class="btn-generar outline"
+          @click="mostrarVistaPrevia"
+          :disabled="cargando || !registrosFiltrados.length"
+        >
           Vista previa PDF
         </button>
-        <button type="button" class="btn btn--primary" @click="exportarPDF">
+        <button
+          type="button"
+          class="btn-generar"
+          @click="exportarReporte"
+          :disabled="cargando || !registrosFiltrados.length"
+        >
           Descargar PDF
         </button>
       </div>
@@ -133,363 +151,508 @@
       <div class="modal">
         <div class="modal-header">
           <strong>Vista previa del reporte</strong>
-          <button class="btn btn--outline btn--sm" @click="cerrarPreview">Cerrar</button>
+          <button class="btn-sm outline" @click="cerrarPreview">Cerrar</button>
         </div>
         <iframe :src="previewUrl" class="pdf-frame"></iframe>
       </div>
     </div>
-  </section>
+  </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
-import axios from '@/services/axios';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { ref, computed, onMounted } from "vue";
+import axios from "@/services/axios";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
-function hoyISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function primerDiaMesActualISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}-01`;
-}
-
-function readUserContext() {
+// Lee nombre de la granja desde localStorage (igual que en otros reportes)
+const readFarmNameFromStorage = () => {
   try {
-    const u = JSON.parse(localStorage.getItem('user') || '{}');
-    const nombre =
-      u.nombre_completo ??
-      u.nombre ??
-      u.full_name ??
-      u.username ??
-      'Usuario';
-    const farm =
-      u.acuicolaNombre ??
-      u.acuicola_name ??
-      u.acuicola ??
-      u.empresa ??
-      'Granja Acuícola';
-    return { nombre: String(nombre), farmName: String(farm), userId: u.usuario_id ?? u.id ?? null };
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const raw =
+      user.acuicolaNombre ??
+      user.acuicola_name ??
+      user.acuicola ??
+      user.empresa ??
+      "Granja Acuícola";
+    return String(raw);
   } catch {
-    return { nombre: 'Usuario', farmName: 'Granja Acuícola', userId: null };
+    return "Granja Acuícola";
   }
-}
+};
+
+// Lee nombre del usuario actual (para el encabezado del reporte)
+const readUserNameFromStorage = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    return String(user.nombre || user.username || "Usuario");
+  } catch {
+    return "Usuario";
+  }
+};
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+const formatFechaCorta = (value) => {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
 
 export default {
-  name: 'ReporteSalidas',
+  name: "ReporteSalidasLote",
   setup() {
-    const { nombre, farmName, userId } = readUserContext();
+    const filtros = ref({
+      fechaInicio: "",
+      fechaFin: "",
+    });
 
-    const fechaInicio = ref(primerDiaMesActualISO());
-    const fechaFin = ref(hoyISO());
+    // Rango aplicado (ya validado)
+    const rango = ref({
+      inicio: null,
+      fin: null,
+    });
 
-    const rawSalidas = ref([]); // respuesta directa del backend
-    const loading = ref(false);
-    const errorMsg = ref('');
+    const cargando = ref(false);
+    const error = ref("");
 
-    const userName = ref(nombre);
-    const acuicolaName = ref(farmName);
-    const currentUserId = ref(userId);
+    const farmName = ref(readFarmNameFromStorage());
+    const currentUserName = ref(readUserNameFromStorage());
 
+    // Datos base
+    const salidas = ref([]); // /salida/
+    const salidasUnitarias = ref([]); // /salida-unitaria/
+    const salidasEstanques = ref([]); // /salida-estanque/
+    const siembras = ref([]); // /siembra/
+    const estanques = ref([]); // /estanque/
+    const productos = ref([]); // /producto/
+    const perfiles = ref([]); // /perfiles/
+    const entradasUnitarias = ref([]); // /entrada-unitaria/
+
+    // PDF preview
     const showPreview = ref(false);
     const previewUrl = ref(null);
 
-    // Normalizar filas para que la tabla y el PDF no dependan de cómo se llame cada campo.
-    const salidasNormalizadas = computed(() => {
-      const rows = (rawSalidas.value || []).map((r, idx) => {
-        const salidaId =
-          r.id_salida ??
-          r.salida_id ??
-          r.id_salida_producto ??
-          r.salida ??
-          null;
-
-        const salidaUnitariaId =
-          r.id_salida_unitaria ??
-          r.salida_unitaria_id ??
-          r.salidaunitaria ??
-          r.id ??
-          null;
-
-        const productoNombre =
-          r.producto_nombre ??
-          r.nombre_producto ??
-          (r.producto && (r.producto.nombre || r.producto.nombre_completo)) ??
-          '';
-
-        const unidad =
-          r.unidad ??
-          r.modo ??
-          (r.cantidad_kg != null ? 'kg' : null);
-
-        const cantidad =
-          r.cantidad ??
-          r.cantidad_salida ??
-          r.cantidad_kg ??
-          r.cantidad_unidades ??
-          0;
-
-        const costoUnit =
-          r.costo_salida_unitaria ??
-          r.costo_unitario ??
-          r.precio_unitario ??
-          r.costo ??
-          null;
-
-        const fecha =
-          r.fecha_salida ??
-          r.fecha ??
-          r.created_at ??
-          r.fecha_registro ??
-          null;
-
-        const siembraId =
-          (typeof r.siembra === 'object'
-            ? (r.siembra.id_siembra ?? r.siembra.id ?? null)
-            : (r.siembra_id ?? r.siembra ?? null));
-
-        const siembraNombre =
-          r.siembra_nombre ??
-          (r.siembra && (r.siembra.nombre || r.siembra.etiqueta || r.siembra.especie)) ??
-          null;
-
-        const usuarioRegistro =
-          r.usuario_registro_nombre ??
-          r.usuario_nombre ??
-          (r.usuario && (r.usuario.nombre || r.usuario.username)) ??
-          null;
-
-        const solicitante =
-          r.solicitante_nombre ??
-          (r.solicitante && (r.solicitante.nombre || r.solicitante.username)) ??
-          null;
-
-        return {
-          rowKey: `${salidaId || 'S'}-${salidaUnitariaId || idx}`,
-          idSalida: salidaId,
-          idSalidaUnitaria: salidaUnitariaId,
-          productoNombre,
-          cantidad: Number(cantidad) || 0,
-          unidad,
-          costoUnitario: costoUnit != null ? Number(costoUnit) : null,
-          fecha,
-          siembraId,
-          siembraNombre,
-          usuarioRegistro,
-          solicitante,
-        };
-      });
-
-      // Orden cronológico ascendente
-      return rows.sort((a, b) => {
-        const ta = a.fecha ? new Date(a.fecha).getTime() : 0;
-        const tb = b.fecha ? new Date(b.fecha).getTime() : 0;
-        return ta - tb;
-      });
-    });
-
-    const totalEstimado = computed(() => {
-      if (!salidasNormalizadas.value.length) return null;
-      let sum = 0;
-      for (const r of salidasNormalizadas.value) {
-        if (r.costoUnitario != null) {
-          sum += r.cantidad * r.costoUnitario;
-        }
-      }
-      return sum;
-    });
+    const formatearFechaHora = (isoStr) => {
+      if (!isoStr) return "";
+      const d = new Date(isoStr);
+      if (Number.isNaN(d.getTime())) return isoStr;
+      return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(
+        d.getHours()
+      )}:${pad2(d.getMinutes())}`;
+    };
 
     const rangoTexto = computed(() => {
-      if (!fechaInicio.value || !fechaFin.value) return '—';
-      return `${fechaInicio.value} a ${fechaFin.value}`;
+      if (!rango.value.inicio || !rango.value.fin) return "";
+      return `${formatFechaCorta(rango.value.inicio)} al ${formatFechaCorta(
+        rango.value.fin
+      )}`;
     });
 
-    const formatMoneda = (v) => {
-      const n = Number(v) || 0;
-      return n.toLocaleString('es-MX', {
-        style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2,
-      });
+    // Carga inicial de datos
+    const cargarDatos = async () => {
+      try {
+        cargando.value = true;
+        error.value = "";
+
+        const [
+          resSalidas,
+          resSalidasUnitarias,
+          resSalidasEstanques,
+          resSiembras,
+          resEstanques,
+          resProductos,
+          resPerfiles,
+          resEntradasUnitarias,
+        ] = await Promise.all([
+          axios.get("/salida/"),
+          axios.get("/salida-unitaria/"),
+          axios.get("/salida-estanque/"),
+          axios.get("/siembra/"),
+          axios.get("/estanque/"),
+          axios.get("/producto/"),
+          axios.get("/perfiles/"),
+          axios.get("/entrada-unitaria/"),
+        ]);
+
+        salidas.value = resSalidas.data || [];
+        salidasUnitarias.value = resSalidasUnitarias.data || [];
+        salidasEstanques.value = resSalidasEstanques.data || [];
+        siembras.value = resSiembras.data || [];
+        estanques.value = resEstanques.data || [];
+        productos.value = resProductos.data || [];
+        perfiles.value = resPerfiles.data || [];
+        entradasUnitarias.value = resEntradasUnitarias.data || [];
+      } catch (e) {
+        console.error(e);
+        error.value = "Ocurrió un error al cargar los datos de salidas.";
+      } finally {
+        cargando.value = false;
+      }
     };
 
-    const formatFecha = (f) => {
-      if (!f) return '—';
-      const d = new Date(f);
-      if (Number.isNaN(d.getTime())) return f;
-      return d.toLocaleDateString('es-MX', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-    };
+    onMounted(() => {
+      cargarDatos();
+    });
 
-    const cargarReporte = async () => {
-      errorMsg.value = '';
-      rawSalidas.value = [];
-      if (!fechaInicio.value || !fechaFin.value) {
-        errorMsg.value = 'Selecciona una fecha de inicio y fin.';
+    // Validar y aplicar rango de fechas
+    const aplicarFiltros = () => {
+      error.value = "";
+
+      if (!filtros.value.fechaInicio || !filtros.value.fechaFin) {
+        error.value = "Selecciona la fecha de inicio y la fecha de fin.";
         return;
       }
-      try {
-        loading.value = true;
 
-        // 👇 AJUSTA ESTA RUTA Y NOMBRES DE QUERIES A TU BACKEND
-        const { data } = await axios.get('/reporte-salidas/', {
-          params: {
-            fecha_inicio: fechaInicio.value,
-            fecha_fin: fechaFin.value,
-            acuicola: acuicolaName.value,
-            // si tu backend filtra por id de acuícola, cambia esto a acuicola_id
-          },
+      const ini = new Date(`${filtros.value.fechaInicio}T00:00:00`);
+      const fin = new Date(`${filtros.value.fechaFin}T23:59:59`);
+
+      if (Number.isNaN(ini.getTime()) || Number.isNaN(fin.getTime())) {
+        error.value = "Las fechas seleccionadas no son válidas.";
+        return;
+      }
+
+      if (ini > fin) {
+        error.value = "La fecha de inicio no puede ser mayor que la fecha de fin.";
+        return;
+      }
+
+      rango.value = { inicio: ini, fin: fin };
+    };
+
+    const limpiarFiltros = () => {
+      filtros.value.fechaInicio = "";
+      filtros.value.fechaFin = "";
+      rango.value = { inicio: null, fin: null };
+      error.value = "";
+    };
+
+    // Registros del reporte (con joins y cálculos)
+    const registrosFiltrados = computed(() => {
+      if (!rango.value.inicio || !rango.value.fin) return [];
+
+      const rows = [];
+
+      // Maps auxiliares
+      const mapSalidaById = new Map();
+      salidas.value.forEach((s) => {
+        mapSalidaById.set(s.id_salida_producto, s);
+      });
+
+      const mapProducto = new Map();
+      productos.value.forEach((p) => {
+        mapProducto.set(p.id_producto, p);
+      });
+
+      const mapSiembra = new Map();
+      siembras.value.forEach((s) => {
+        mapSiembra.set(s.id_siembra, s);
+      });
+
+      const mapEstanque = new Map();
+      estanques.value.forEach((e) => {
+        mapEstanque.set(e.id_estanque, e);
+      });
+
+      const mapSalidaEstanqueBySalidaUnit = new Map();
+      salidasEstanques.value.forEach((se) => {
+        // campo viene como id de salidaunitaria
+        mapSalidaEstanqueBySalidaUnit.set(se.salidaunitaria, se.siembra);
+      });
+
+      // Perfiles: por user.id y por perfil.id
+      const mapPerfilByUserId = new Map();
+      const mapPerfilByPerfilId = new Map();
+      perfiles.value.forEach((p) => {
+        mapPerfilByUserId.set(p.user.id, p);
+        mapPerfilByPerfilId.set(p.id, p);
+      });
+
+      const nombreUsuarioPorId = (userId) => {
+        if (userId == null) return "";
+        const perfil = mapPerfilByUserId.get(userId);
+        if (perfil && perfil.user) {
+          return perfil.user.username || `Usuario ${perfil.user.id}`;
+        }
+        return `ID ${userId}`;
+      };
+
+      const nombreSolicitantePorId = (id) => {
+        if (id == null) return "";
+        const perfil =
+          mapPerfilByPerfilId.get(id) || mapPerfilByUserId.get(id);
+        if (perfil && perfil.user) {
+          return perfil.user.username || `Usuario ${perfil.user.id}`;
+        }
+        return `ID ${id}`;
+      };
+
+      // Costo promedio por producto+lote usando las entradas unitarias
+      const acumPorClave = new Map();
+      entradasUnitarias.value.forEach((e) => {
+        const key = `${e.producto}|${e.lote}`;
+        let acc = acumPorClave.get(key);
+        if (!acc) {
+          acc = { kg: 0, costo: 0 };
+          acumPorClave.set(key, acc);
+        }
+        acc.kg += e.cantidad_kg || 0;
+        acc.costo += e.costo || 0;
+      });
+
+      const costoPorKg = new Map();
+      acumPorClave.forEach((acc, key) => {
+        if (acc.kg > 0) {
+          costoPorKg.set(key, acc.costo / acc.kg);
+        }
+      });
+
+      salidasUnitarias.value.forEach((su) => {
+        const fechaRegistro = new Date(su.fecha);
+        if (
+          fechaRegistro < rango.value.inicio ||
+          fechaRegistro > rango.value.fin
+        ) {
+          return;
+        }
+
+        const salida = mapSalidaById.get(su.salida);
+        const producto = mapProducto.get(su.producto);
+
+        const keyCosto = `${su.producto}|${su.lote}`;
+        const costoKg = costoPorKg.get(keyCosto) ?? null;
+        const costoSalida =
+          costoKg != null && su.cantidad_kg != null
+            ? costoKg * su.cantidad_kg
+            : null;
+
+        const siembraId =
+          mapSalidaEstanqueBySalidaUnit.get(su.id_salida_unitaria) || null;
+        const siembra = siembraId ? mapSiembra.get(siembraId) : null;
+        const estanque = siembra ? mapEstanque.get(siembra.estanque) : null;
+
+        const siembraNombre = siembra
+          ? `${siembra.especie}${
+              estanque ? " — " + estanque.nombre : ""
+            }`
+          : "";
+
+        rows.push({
+          fechaIso: su.fecha,
+          fecha: fechaRegistro,
+          id_salida: salida ? salida.id_salida_producto : null,
+          id_salida_unitaria: su.id_salida_unitaria,
+          producto: producto ? producto.nombre : `Producto ${su.producto}`,
+          lote: su.lote,
+          cantidad: su.cantidad,
+          cantidad_kg: su.cantidad_kg,
+          costo_salida: costoSalida,
+          siembra_id: siembraId,
+          siembra_nombre: siembraNombre,
+          registrado_por: nombreUsuarioPorId(su.usuario),
+          solicitante: salida ? nombreSolicitantePorId(salida.solicitante) : "",
         });
+      });
 
-        // Soportar tanto lista directa como formato paginado
-        rawSalidas.value = Array.isArray(data) ? data : (data.results || []);
-      } catch (err) {
-        console.error('Error al cargar reporte de salidas:', err);
-        errorMsg.value = 'Ocurrió un error al consultar el reporte.';
-      } finally {
-        loading.value = false;
+      rows.sort((a, b) => {
+        const t = a.fecha - b.fecha;
+        if (t !== 0) return t;
+        return (a.id_salida_unitaria || 0) - (b.id_salida_unitaria || 0);
+      });
+
+      return rows;
+    });
+
+    const totalMonto = computed(() =>
+      registrosFiltrados.value.reduce(
+        (acc, r) => acc + (r.costo_salida || 0),
+        0
+      )
+    );
+
+    const asegurarRango = () => {
+      // Si aún no se ha aplicado, pero hay fechas en filtros, intenta aplicarlos
+      if (!rango.value.inicio && filtros.value.fechaInicio && filtros.value.fechaFin) {
+        aplicarFiltros();
       }
     };
 
-    // ====== PDF ======
-    const construirPDF = () => {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-      const M = 40;
+    // ===== PDF =====
+    const construirPDF = async ({ preview = false } = {}) => {
+      asegurarRango();
+      const registros = registrosFiltrados.value;
+
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+
+      const M = 44;
       const PAGE_W = doc.internal.pageSize.getWidth();
       const PAGE_H = doc.internal.pageSize.getHeight();
       const CONTENT_W = PAGE_W - M * 2;
 
-      const setFont = (size = 10, style = 'normal') => {
-        doc.setFont('helvetica', style);
+      const setFont = (f = "helvetica", size = 9, style = "normal") => {
+        doc.setFont(f, style);
         doc.setFontSize(size);
       };
 
-      // Encabezado principal (solo primera página)
-      const now = new Date();
-      const fGen = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
-        now.getDate()
-      ).padStart(2, '0')}`;
+      const drawHeader = (page) => {
+        doc.setPage(page);
+        setFont("helvetica", 11, "bold");
+        const title = String(farmName.value || "Granja Acuícola");
+        doc.text(title, PAGE_W / 2, M - 18, { align: "center" });
+        doc.setDrawColor(230);
+        doc.line(M, M - 12, PAGE_W - M, M - 12);
+      };
 
-      setFont(14, 'bold');
-      doc.text('Reporte de salidas de inventario', M, M + 4);
+      const ahora = new Date();
+      const fechaGeneracion = `${ahora.getFullYear()}-${pad2(
+        ahora.getMonth() + 1
+      )}-${pad2(ahora.getDate())}`;
 
-      setFont(10);
+      let y = M + 4;
+
+      // Título
+      setFont("helvetica", 16, "bold");
+      doc.text("Reporte de salidas de almacén", M, y);
+      setFont("helvetica", 9);
       doc.setTextColor(120);
-      doc.text(`Generado: ${fGen}`, PAGE_W - M, M + 4, { align: 'right' });
+      doc.text(`Generado: ${fechaGeneracion}`, PAGE_W - M, y, {
+        align: "right",
+      });
       doc.setTextColor(0);
+      y += 20;
 
-      doc.setDrawColor(220);
-      doc.line(M, M + 10, PAGE_W - M, M + 10);
-
-      let y = M + 26;
-
-      // Bloque información general
-      setFont(11, 'bold');
-      doc.text('Información del reporte', M, y);
+      // Resumen principal
+      setFont("helvetica", 11, "bold");
+      doc.text("Resumen del reporte", M, y);
       y += 14;
 
-      setFont(10);
-      const infoLines = [
-        `Rango de fechas: ${rangoTexto.value}`,
-        `Generado por: ${userName.value}`,
-        `Acuícola: ${acuicolaName.value}`,
-        `Número de salidas: ${salidasNormalizadas.value.length}`,
-      ];
-      if (totalEstimado.value !== null) {
-        infoLines.push(`Costo total estimado: ${formatMoneda(totalEstimado.value)}`);
-      }
+      setFont("helvetica", 9);
+      const lineasResumen = [];
 
-      infoLines.forEach((line) => {
-        const wrapped = doc.splitTextToSize(line, CONTENT_W);
-        doc.text(wrapped, M, y);
+      lineasResumen.push(`Acuícola: ${farmName.value}`);
+      if (rango.value.inicio && rango.value.fin) {
+        lineasResumen.push(
+          `Periodo de salidas: ${formatFechaCorta(
+            rango.value.inicio
+          )} al ${formatFechaCorta(rango.value.fin)}`
+        );
+      }
+      lineasResumen.push(`Generado por: ${currentUserName.value}`);
+      lineasResumen.push(
+        `Total de salidas unitarias: ${registros.length}`
+      );
+      lineasResumen.push(
+        `Monto total estimado: $${totalMonto.value.toFixed(2)}`
+      );
+
+      lineasResumen.forEach((txt) => {
+        doc.text(doc.splitTextToSize(txt, CONTENT_W), M, y);
         y += 12;
       });
-
       y += 6;
 
-      // Tabla de detalle
-      const head = [
-        [
-          'Fecha',
-          'ID Salida',
-          'ID Unitaria',
-          'Producto',
-          'Cant.',
-          'Costo unit.',
-          'Siembra',
-          'Registró',
-          'Solicitó',
-        ],
-      ];
-
-      const body = salidasNormalizadas.value.map((r) => [
-        formatFecha(r.fecha),
-        r.idSalida ?? '',
-        r.idSalidaUnitaria ?? '',
-        r.productoNombre ?? '',
-        `${r.cantidad}${r.unidad ? ' ' + r.unidad : ''}`,
-        r.costoUnitario != null ? formatMoneda(r.costoUnitario) : '',
-        r.siembraId ? `#${r.siembraId} ${r.siembraNombre || ''}` : '',
-        r.usuarioRegistro || '',
-        r.solicitante || '',
+      // Tabla con las salidas
+      const body = registros.map((r) => [
+        formatearFechaHora(r.fechaIso),
+        r.id_salida ?? "",
+        r.id_salida_unitaria ?? "",
+        r.producto || "",
+        r.lote || "",
+        r.cantidad != null ? r.cantidad.toFixed(2) : "",
+        r.cantidad_kg != null ? r.cantidad_kg.toFixed(2) : "",
+        r.costo_salida != null ? r.costo_salida.toFixed(2) : "",
+        r.siembra_id
+          ? `${r.siembra_id} ${
+              r.siembra_nombre ? " - " + r.siembra_nombre : ""
+            }`
+          : "",
+        r.solicitante || "",
+        r.registrado_por || "",
       ]);
 
       autoTable(doc, {
         startY: y,
-        head,
-        body,
         margin: { left: M, right: M },
-        styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-        headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: 'center' },
-        bodyStyles: { valign: 'top' },
+        styles: {
+          font: "helvetica",
+          fontSize: 8,
+          cellPadding: 3,
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [40, 167, 69],
+          textColor: 255,
+          halign: "center",
+        },
+        bodyStyles: { valign: "top" },
         columnStyles: {
-          0: { cellWidth: 60 },
-          1: { cellWidth: 50 },
-          2: { cellWidth: 55 },
-          3: { cellWidth: 120 },
-          4: { cellWidth: 45 },
-          5: { cellWidth: 65 },
-          6: { cellWidth: 85 },
-          7: { cellWidth: 80 },
-          8: { cellWidth: 80 },
+          0: { cellWidth: 60 }, // Fecha
+          1: { cellWidth: 40 }, // ID salida
+          2: { cellWidth: 45 }, // ID salida unitaria
+          3: { cellWidth: 90 }, // Producto
+          4: { cellWidth: 45 }, // Lote
+          5: { cellWidth: 40 }, // Cant
+          6: { cellWidth: 40 }, // Kg
+          7: { cellWidth: 55 }, // Costo
+          8: { cellWidth: 80 }, // Siembra
+          9: { cellWidth: 60 }, // Solicitó
+          10: { cellWidth: 60 }, // Registró
         },
-        didDrawPage: (data) => {
-          // Pie con número de página
-          const pageNumber = doc.internal.getNumberOfPages();
-          setFont(9);
-          doc.setTextColor(120);
-          doc.text(
-            `Página ${pageNumber}`,
-            PAGE_W / 2,
-            PAGE_H - 10,
-            { align: 'center' }
-          );
-          doc.setTextColor(0);
-        },
+        head: [
+          [
+            "Fecha",
+            "ID salida",
+            "ID U.",
+            "Producto",
+            "Lote",
+            "Cant.",
+            "Kg",
+            "Costo",
+            "Siembra",
+            "Solicitó",
+            "Registró",
+          ],
+        ],
+        body,
       });
 
-      return doc;
+      // Encabezados y pies de página
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        drawHeader(i);
+        doc.setPage(i);
+        setFont("helvetica", 9);
+        doc.setTextColor(120);
+        doc.text(
+          `Página ${i} de ${pageCount}`,
+          PAGE_W / 2,
+          PAGE_H - 16,
+          { align: "center" }
+        );
+        doc.setTextColor(0);
+      }
+
+      if (preview) {
+        const blob = doc.output("blob");
+        if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+        const url = URL.createObjectURL(blob);
+        return url;
+      } else {
+        doc.save(`reporte_salidas_${Date.now()}.pdf`);
+        return null;
+      }
     };
 
-    const mostrarVistaPrevia = () => {
-      if (!salidasNormalizadas.value.length) return;
-      const doc = construirPDF();
-      const blob = doc.output('blob');
-      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-      const url = URL.createObjectURL(blob);
-      previewUrl.value = url;
-      showPreview.value = true;
+    const mostrarVistaPrevia = async () => {
+      const url = await construirPDF({ preview: true });
+      if (url) {
+        previewUrl.value = url;
+        showPreview.value = true;
+      }
     };
 
     const cerrarPreview = () => {
@@ -500,156 +663,215 @@ export default {
       }
     };
 
-    const exportarPDF = () => {
-      if (!salidasNormalizadas.value.length) return;
-      const doc = construirPDF();
-      doc.save(`reporte_salidas_${fechaInicio.value}_a_${fechaFin.value}.pdf`);
+    const exportarReporte = async () => {
+      await construirPDF({ preview: false });
     };
 
-    onMounted(() => {
-      // Cargar reporte del mes actual por defecto
-      cargarReporte();
-    });
-
     return {
-      fechaInicio,
-      fechaFin,
-      loading,
-      errorMsg,
-      rawSalidas,
-      salidasNormalizadas,
-      totalEstimado,
+      // estado
+      filtros,
+      cargando,
+      error,
+      farmName,
+      registrosFiltrados,
+      totalMonto,
       rangoTexto,
-      userName,
-      farmName: acuicolaName,
-      currentUserId,
 
-      formatFecha,
-      formatMoneda,
-      cargarReporte,
+      // acciones
+      aplicarFiltros,
+      limpiarFiltros,
 
-      // PDF / preview
+      // util
+      formatearFechaHora,
+
+      // pdf / preview
       showPreview,
       previewUrl,
       mostrarVistaPrevia,
       cerrarPreview,
-      exportarPDF,
+      exportarReporte,
     };
   },
 };
 </script>
 
 <style scoped>
-.reporte-salidas {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 20px 10px 40px;
+.reporte-salidas-container {
+  font-family: "Poppins", sans-serif;
+  max-width: 1200px;
+  margin: 30px auto;
+  padding: 24px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  font-size: 22px;
+  margin-bottom: 18px;
+  color: #333;
+}
+
+.filtros {
+  margin-bottom: 16px;
 }
 
 .card {
-  background: #ffffff;
+  border: 1px solid #eee;
   border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-  padding: 20px 20px 24px;
+  padding: 16px;
+  background: #fafafa;
 }
 
-.card--mt {
-  margin-top: 24px;
-}
-
-.card__header {
-  margin-bottom: 18px;
-}
-
-.card__header--compact {
-  margin-bottom: 12px;
-}
-
-.card__title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #111827;
-}
-
-.card__sub {
-  margin-top: 4px;
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-.form-filtros {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
-  align-items: flex-end;
 }
 
-.field {
+.form-row.acciones {
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+
+.form-group {
+  flex: 1 1 180px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
-.field--actions {
-  align-items: flex-end;
-}
-
-.label {
-  font-size: 0.85rem;
+label {
   font-weight: 600;
-  color: #374151;
+  margin-bottom: 4px;
+  color: #444;
+  font-size: 14px;
 }
 
-.input {
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
+input[type="date"] {
+  width: 100%;
   padding: 8px 10px;
-  font-size: 0.95rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #f8f9fa;
+  font-size: 14px;
+  transition: all 0.15s ease-in-out;
+}
+
+input[type="date"]:focus {
+  border-color: #28a745;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.15);
 }
 
-.input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 9px 16px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
+/* Botones */
+button {
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
 }
 
-.btn--primary {
-  background: #2563eb;
-  color: #ffffff;
-  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.25);
+button:hover:not(:disabled) {
+  transform: scale(1.02);
 }
 
-.btn--primary:hover {
-  background: #1d4ed8;
-  transform: translateY(-1px);
+button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
-.btn--outline {
-  background: #ffffff;
-  color: #2563eb;
-  border: 1px solid #2563eb;
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.btn--sm {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
+.btn-cta {
+  background: #28a745;
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(40, 167, 69, 0.3);
 }
 
+.btn-sm {
+  background: #28a745;
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-sm.outline {
+  background: #fff;
+  color: #28a745;
+  border: 1px solid #28a745;
+}
+
+.btn-generar {
+  margin-top: 12px;
+  background: #28a745;
+  color: #fff;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.btn-generar.outline {
+  background: #fff;
+  color: #28a745;
+  border: 1px solid #28a745;
+}
+
+/* Resumen */
+.resumen {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #f2fff6;
+  border: 1px solid #d2f4de;
+  font-size: 14px;
+}
+
+.resumen h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #256c3a;
+}
+
+/* Tabla */
+.tabla-wrapper {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #fff;
+}
+
+th,
+td {
+  padding: 8px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+
+th {
+  background: #28a745;
+  color: #fff;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Botones PDF */
 .btn-row {
   display: flex;
   gap: 10px;
@@ -657,64 +879,29 @@ export default {
   margin-top: 16px;
 }
 
-.resumen {
-  margin-top: 16px;
-  font-size: 0.88rem;
-  color: #374151;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 4px;
+/* Alertas */
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5f5;
+  font-size: 13px;
+  margin-bottom: 10px;
 }
 
-.error-msg {
-  margin-top: 10px;
+.alert.error {
+  background: #fff5f5;
+  border-color: #fecaca;
   color: #b91c1c;
-  font-size: 0.85rem;
 }
 
-/* Tabla */
-.table-wrap {
-  overflow-x: auto;
+.muted {
+  font-size: 14px;
+  color: #666;
+  margin-top: 10px;
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.table th,
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.table th {
-  text-align: left;
-  font-weight: 600;
-  color: #4b5563;
-  background: #f9fafb;
-}
-
-.table tr:nth-child(even) td {
-  background: #f9fafb;
-}
-
-.text-muted {
-  color: #9ca3af;
-}
-
-.text-right {
-  text-align: right;
-}
-
-.empty-state {
-  padding: 12px 4px 8px;
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-/* Modal preview */
+/* Modal preview PDF */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -742,11 +929,29 @@ export default {
   justify-content: space-between;
   padding: 10px 14px;
   border-bottom: 1px solid #eee;
+  font-size: 14px;
 }
 
 .pdf-frame {
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .reporte-salidas-container {
+    padding: 16px;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  th,
+  td {
+    font-size: 12px;
+    padding: 6px;
+  }
 }
 </style>
