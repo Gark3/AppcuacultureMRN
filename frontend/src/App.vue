@@ -143,6 +143,9 @@
               <li v-if="has('reporte_estanque')">
                 <router-link to="/reporte/estanque" class="side-link" @click="onNavClick">Estanque</router-link>
               </li>
+              <li v-if="has('reporte_estanque')">
+                <router-link to="/reporte/lote" class="side-link" @click="onNavClick">Salidas</router-link>
+              </li>
               <li v-if="has('reporte_crecimiento')">
                 <router-link to="/reporte/crecimiento" class="side-link" @click="onNavClick">Crecimiento</router-link>
               </li>
@@ -284,6 +287,7 @@ const DEFAULT_PERMS = {
   produccion_cuarentena: false,
   // Reporte
   reporte_estanque: false,
+  reporte_lote: false,
   reporte_crecimiento: false,
   reporte_gpc: false,
   reporte_calidad_agua: false,
