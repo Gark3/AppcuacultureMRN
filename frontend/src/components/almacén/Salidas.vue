@@ -159,6 +159,7 @@
 
 <script>
 import axios from '@/services/axios';
+
 export default {
   name: 'RegistroSalidas',
   data() {
@@ -174,8 +175,8 @@ export default {
         productos: [],
       },
 
-      // solicitante (nuevo)
-      solicitanteId: user?.usuario_id ?? null,
+      // solicitante
+      solicitanteId: null, // se selecciona desde el combo
       usuarios: [],
       loadingUsuarios: false,
 
@@ -268,14 +269,17 @@ export default {
     async cargarUsuarios() {
       try {
         this.loadingUsuarios = true;
-        const { data } = await axios.get('/usuario/');
+        // Usamos el mismo endpoint que en PagoNomina
+        const { data } = await axios.get('/nomina/');
         const arr = Array.isArray(data) ? data : (data.results || []);
-        this.usuarios = arr.map(u => ({
-          id: u.id ?? u.id_usuario ?? u.pk,
-          nombre: u.nombre ?? u.nombre_completo ?? u.username ?? '',
-          correo: u.correo ?? u.email ?? '',
-          acuicola: u.acuicola ?? u.acuicola_id ?? null,
-          estado: u.estado ?? 1,
+
+        // Mapear configuración de nómina -> "usuarios" para el combo de solicitantes
+        this.usuarios = arr.map(config => ({
+          id: config.perfil,           // se enviará como solicitante
+          nombre: config.nombre,       // mostrado en el select
+          correo: config.correo || config.email || '', // si tu API lo trae
+          acuicola: config.acuicola ?? this.acuicolaId,
+          estado: 1,                   // considerados activos
         }));
       } catch (e) {
         console.error('No se pudieron cargar usuarios:', e);
@@ -284,6 +288,7 @@ export default {
         this.loadingUsuarios = false;
       }
     },
+
     obtenerSiembras() {
       axios.get('/siembra/')
         .then(response => {
@@ -372,7 +377,7 @@ export default {
       }
 
       const salidaPayload = {
-        solicitante: this.solicitanteId, // ✅ enviamos el ID del solicitante
+        solicitante: this.solicitanteId, // ID que viene de /nomina/ (perfil)
         usuario: this.usuarioId,
         acuicola: this.acuicolaId,
         estado: 1,
@@ -428,9 +433,6 @@ export default {
           alert('¡Salida registrada con éxito!');
           this.salida = { area: '', productos: [] };
           this.siembraSeleccionada = null;
-          // deja seleccionado al usuario logueado por comodidad
-          // (si no quieres, comenta la siguiente línea)
-          // this.solicitanteId = this.usuarioId;
         })
         .catch(err => {
           console.error('Error al registrar la salida:', err);
@@ -449,7 +451,6 @@ export default {
 </script>
 
 <style scoped>
-/* Usa tu tema global; sólo estilos mínimos para el buscador tipo listbox */
 .listbox {
   list-style: none;
   margin: 6px 0 0;
