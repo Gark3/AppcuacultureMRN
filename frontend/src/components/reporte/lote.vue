@@ -387,26 +387,37 @@ export default {
         return `ID ${id}`;
       };
 
-      // Costo promedio por producto+lote usando las entradas unitarias
+      // === Cálculo de costo promedio por producto + lote ===
+      // Usando la unidad base: kg si hay, si no, cantidad (piezas)
       const acumPorClave = new Map();
       entradasUnitarias.value.forEach((e) => {
         const key = `${e.producto}|${e.lote}`;
         let acc = acumPorClave.get(key);
         if (!acc) {
-          acc = { kg: 0, costo: 0 };
+          acc = { cantidadBase: 0, costo: 0 };
           acumPorClave.set(key, acc);
         }
-        acc.kg += e.cantidad_kg || 0;
-        acc.costo += e.costo || 0;
+
+        const cantidadBase =
+          (e.cantidad_kg != null && e.cantidad_kg > 0
+            ? e.cantidad_kg
+            : e.cantidad ?? 0) || 0;
+
+        const costoEntrada =
+          e.costo_total != null ? e.costo_total : e.costo ?? 0;
+
+        acc.cantidadBase += cantidadBase;
+        acc.costo += costoEntrada;
       });
 
-      const costoPorKg = new Map();
+      const costoUnitarioPorClave = new Map();
       acumPorClave.forEach((acc, key) => {
-        if (acc.kg > 0) {
-          costoPorKg.set(key, acc.costo / acc.kg);
+        if (acc.cantidadBase > 0) {
+          costoUnitarioPorClave.set(key, acc.costo / acc.cantidadBase);
         }
       });
 
+      // Construcción de filas
       salidasUnitarias.value.forEach((su) => {
         const fechaRegistro = new Date(su.fecha);
         if (
@@ -420,10 +431,17 @@ export default {
         const producto = mapProducto.get(su.producto);
 
         const keyCosto = `${su.producto}|${su.lote}`;
-        const costoKg = costoPorKg.get(keyCosto) ?? null;
+        const costoUnitario = costoUnitarioPorClave.get(keyCosto) ?? null;
+
+        // Cantidad base de la salida: kg si hay, si no unidades
+        const cantidadBaseSalida =
+          su.cantidad_kg != null && su.cantidad_kg > 0
+            ? su.cantidad_kg
+            : su.cantidad ?? null;
+
         const costoSalida =
-          costoKg != null && su.cantidad_kg != null
-            ? costoKg * su.cantidad_kg
+          costoUnitario != null && cantidadBaseSalida != null
+            ? costoUnitario * cantidadBaseSalida
             : null;
 
         const siembraId =
@@ -477,12 +495,11 @@ export default {
       }
     };
 
-    // ===== PDF (ahora en horizontal y con saltos de línea) =====
+    // ===== PDF (horizontal + saltos de línea) =====
     const construirPDF = async ({ preview = false } = {}) => {
       asegurarRango();
       const registros = registrosFiltrados.value;
 
-      // Hoja A4 horizontal en milímetros
       const doc = new jsPDF({
         orientation: "landscape",
         unit: "mm",
@@ -588,8 +605,8 @@ export default {
           font: "helvetica",
           fontSize: 8,
           cellPadding: 1.5,
-          overflow: "linebreak", // rompe en varias líneas
-          cellWidth: "wrap",      // ajusta al ancho de la celda
+          overflow: "linebreak",
+          cellWidth: "wrap",
         },
         headStyles: {
           fillColor: [40, 167, 69],
@@ -597,7 +614,6 @@ export default {
           halign: "center",
         },
         bodyStyles: { valign: "top" },
-        // Anchos de columna pensados para A4 horizontal
         columnStyles: {
           0: { cellWidth: 25 }, // Fecha
           1: { cellWidth: 18 }, // ID salida
@@ -607,7 +623,7 @@ export default {
           5: { cellWidth: 18 }, // Cant.
           6: { cellWidth: 18 }, // Kg
           7: { cellWidth: 22 }, // Costo
-          8: { cellWidth: 60 }, // Siembra (más ancho)
+          8: { cellWidth: 60 }, // Siembra
           9: { cellWidth: 22 }, // Solicitó
           10: { cellWidth: 22 }, // Registró
         },
@@ -629,7 +645,6 @@ export default {
         body,
       });
 
-      // Encabezados y pies de página en TODAS las páginas
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         drawHeader(i);
@@ -703,6 +718,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 .reporte-salidas-container {
