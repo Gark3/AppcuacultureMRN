@@ -477,24 +477,27 @@ export default {
       }
     };
 
-    // ===== PDF =====
+    // ===== PDF (ahora en horizontal y con saltos de línea) =====
     const construirPDF = async ({ preview = false } = {}) => {
       asegurarRango();
       const registros = registrosFiltrados.value;
 
+      // Hoja A4 horizontal en milímetros
       const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "pt",
+        orientation: "landscape",
+        unit: "mm",
         format: "a4",
       });
 
-      const M = 44;
-      const PAGE_W = doc.internal.pageSize.getWidth();
-      const PAGE_H = doc.internal.pageSize.getHeight();
-      const CONTENT_W = PAGE_W - M * 2;
+      const marginLeft = 10;
+      const marginRight = 10;
+      const marginTop = 18;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - marginLeft - marginRight;
 
-      const setFont = (f = "helvetica", size = 9, style = "normal") => {
-        doc.setFont(f, style);
+      const setFont = (font = "helvetica", size = 9, style = "normal") => {
+        doc.setFont(font, style);
         doc.setFontSize(size);
       };
 
@@ -502,9 +505,14 @@ export default {
         doc.setPage(page);
         setFont("helvetica", 11, "bold");
         const title = String(farmName.value || "Granja Acuícola");
-        doc.text(title, PAGE_W / 2, M - 18, { align: "center" });
+        doc.text(title, pageWidth / 2, marginTop - 6, { align: "center" });
         doc.setDrawColor(230);
-        doc.line(M, M - 12, PAGE_W - M, M - 12);
+        doc.line(
+          marginLeft,
+          marginTop - 4,
+          pageWidth - marginRight,
+          marginTop - 4
+        );
       };
 
       const ahora = new Date();
@@ -512,23 +520,23 @@ export default {
         ahora.getMonth() + 1
       )}-${pad2(ahora.getDate())}`;
 
-      let y = M + 4;
+      let y = marginTop + 4;
 
-      // Título
+      // Título principal
       setFont("helvetica", 16, "bold");
-      doc.text("Reporte de salidas de almacén", M, y);
+      doc.text("Reporte de salidas de almacén", marginLeft, y);
       setFont("helvetica", 9);
       doc.setTextColor(120);
-      doc.text(`Generado: ${fechaGeneracion}`, PAGE_W - M, y, {
+      doc.text(`Generado: ${fechaGeneracion}`, pageWidth - marginRight, y, {
         align: "right",
       });
       doc.setTextColor(0);
-      y += 20;
+      y += 8;
 
       // Resumen principal
       setFont("helvetica", 11, "bold");
-      doc.text("Resumen del reporte", M, y);
-      y += 14;
+      doc.text("Resumen del reporte", marginLeft, y);
+      y += 7;
 
       setFont("helvetica", 9);
       const lineasResumen = [];
@@ -542,20 +550,19 @@ export default {
         );
       }
       lineasResumen.push(`Generado por: ${currentUserName.value}`);
-      lineasResumen.push(
-        `Total de salidas unitarias: ${registros.length}`
-      );
+      lineasResumen.push(`Total de salidas unitarias: ${registros.length}`);
       lineasResumen.push(
         `Monto total estimado: $${totalMonto.value.toFixed(2)}`
       );
 
       lineasResumen.forEach((txt) => {
-        doc.text(doc.splitTextToSize(txt, CONTENT_W), M, y);
-        y += 12;
+        const wrapped = doc.splitTextToSize(txt, contentWidth);
+        doc.text(wrapped, marginLeft, y);
+        y += 5;
       });
-      y += 6;
+      y += 4;
 
-      // Tabla con las salidas
+      // Datos de la tabla
       const body = registros.map((r) => [
         formatearFechaHora(r.fechaIso),
         r.id_salida ?? "",
@@ -576,12 +583,13 @@ export default {
 
       autoTable(doc, {
         startY: y,
-        margin: { left: M, right: M },
+        margin: { left: marginLeft, right: marginRight, top: marginTop },
         styles: {
           font: "helvetica",
           fontSize: 8,
-          cellPadding: 3,
-          overflow: "linebreak",
+          cellPadding: 1.5,
+          overflow: "linebreak", // rompe en varias líneas
+          cellWidth: "wrap",      // ajusta al ancho de la celda
         },
         headStyles: {
           fillColor: [40, 167, 69],
@@ -589,18 +597,19 @@ export default {
           halign: "center",
         },
         bodyStyles: { valign: "top" },
+        // Anchos de columna pensados para A4 horizontal
         columnStyles: {
-          0: { cellWidth: 60 }, // Fecha
-          1: { cellWidth: 40 }, // ID salida
-          2: { cellWidth: 45 }, // ID salida unitaria
-          3: { cellWidth: 90 }, // Producto
-          4: { cellWidth: 45 }, // Lote
-          5: { cellWidth: 40 }, // Cant
-          6: { cellWidth: 40 }, // Kg
-          7: { cellWidth: 55 }, // Costo
-          8: { cellWidth: 80 }, // Siembra
-          9: { cellWidth: 60 }, // Solicitó
-          10: { cellWidth: 60 }, // Registró
+          0: { cellWidth: 25 }, // Fecha
+          1: { cellWidth: 18 }, // ID salida
+          2: { cellWidth: 18 }, // ID salida unitaria
+          3: { cellWidth: 32 }, // Producto
+          4: { cellWidth: 18 }, // Lote
+          5: { cellWidth: 18 }, // Cant.
+          6: { cellWidth: 18 }, // Kg
+          7: { cellWidth: 22 }, // Costo
+          8: { cellWidth: 60 }, // Siembra (más ancho)
+          9: { cellWidth: 22 }, // Solicitó
+          10: { cellWidth: 22 }, // Registró
         },
         head: [
           [
@@ -620,17 +629,17 @@ export default {
         body,
       });
 
-      // Encabezados y pies de página
+      // Encabezados y pies de página en TODAS las páginas
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         drawHeader(i);
         doc.setPage(i);
-        setFont("helvetica", 9);
+        setFont("helvetica", 8);
         doc.setTextColor(120);
         doc.text(
           `Página ${i} de ${pageCount}`,
-          PAGE_W / 2,
-          PAGE_H - 16,
+          pageWidth / 2,
+          pageHeight - 6,
           { align: "center" }
         );
         doc.setTextColor(0);
